@@ -26,6 +26,5 @@
       "allow": [{ "path": "**" }]
     },
     "dialog:allow-save",
-    "screenshot-suite:default"
   ]
 }
