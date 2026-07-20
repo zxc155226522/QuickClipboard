@@ -64,7 +64,6 @@ const TitleBar = forwardRef(
       contentFilter = "all",
       onFilterChange,
       onTabChange,
-      updateBannerState = null,
     },
     ref,
   ) => {
@@ -86,11 +85,6 @@ const TitleBar = forwardRef(
         ? "right"
         : "left"
       : "bottom";
-    const showUpdateHint = Boolean(
-      settingsSnap.disableUpdatePopup === true &&
-      updateBannerState?.currentVersion &&
-      updateBannerState?.latestVersion,
-    );
     const currentStore =
       activeTab === "clipboard"
         ? clipboardStore
@@ -156,24 +150,6 @@ const TitleBar = forwardRef(
         await openAppSettings();
       } catch (error) {
         console.error("标题栏打开设置失败:", error);
-      }
-    };
-    const handleOpenUpdater = async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      try {
-        const opened = await invoke("open_cached_update_window");
-        if (!opened) {
-          await invoke("check_updates_and_open_window");
-        }
-      } catch (error) {
-        console.error("标题栏打开更新窗口失败:", error);
-        toast.error(
-          t("updater.checkFailed", {
-            msg: formatUserMessage(error, t, "errors.operationFailed"),
-          }),
-          TOAST_CONFIG,
-        );
       }
     };
     const handleOpenTransferShelf = async (event) => {
@@ -840,28 +816,6 @@ const TitleBar = forwardRef(
                 ></i>
               </button>
             </Tooltip>
-
-            {/* 更新提示 */}
-            {showUpdateHint && (
-              <Tooltip
-                content={t("updater.newVersionFound", {
-                  version: updateBannerState.latestVersion,
-                })}
-                placement={tooltipPlacement}
-                asChild
-              >
-                <button
-                  type="button"
-                  className="w-7 h-7 flex items-center justify-center rounded-lg border border-emerald-500 bg-emerald-50/80 text-emerald-600 transition-all duration-200 hover:bg-emerald-100 dark:bg-emerald-500/12 dark:text-emerald-400"
-                  onClick={handleOpenUpdater}
-                  aria-label={t("updater.newVersionFound", {
-                    version: updateBannerState.latestVersion,
-                  })}
-                >
-                  <i className="ti ti-arrow-big-up" style={{ fontSize: 16 }} data-stroke="1.5"></i>
-                </button>
-              </Tooltip>
-            )}
 
             {/* 更多菜单 */}
             <Tooltip

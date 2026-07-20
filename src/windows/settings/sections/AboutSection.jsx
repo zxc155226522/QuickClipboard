@@ -6,11 +6,7 @@ import { getAppVersion } from '@shared/services/settingsService';
 import { copyTextToClipboard } from '@shared/api';
 import { toast } from '@shared/store/toastStore';
 import SettingsSection from '../components/SettingsSection';
-import SettingItem from '../components/SettingItem';
 import Button from '@shared/components/ui/Button';
-import Select from '@shared/components/ui/Select';
-import Toggle from '@shared/components/ui/Toggle';
-import { formatUserMessage } from '@shared/utils/userMessages';
 import logoIcon from '@/assets/icon1024.png';
 import wxzsm from '@/assets/wxzsm.png';
 import appLinks from '@shared/config/appLinks.json';
@@ -29,18 +25,6 @@ function AboutSection({
   } = useTranslation();
   const [showQROverlay, setShowQROverlay] = useState(false);
   const [version, setVersion] = useState('1.0.0');
-  const [checkingUpdate, setCheckingUpdate] = useState(false);
-  const updateIntervalOptions = [{
-    value: 'daily',
-    label: t('settings.about.updateIntervalDaily')
-  }, {
-    value: 'every3days',
-    label: t('settings.about.updateIntervalEvery3Days')
-  }, {
-    value: 'weekly',
-    label: t('settings.about.updateIntervalWeekly')
-  }];
-  const includeBetaUpdates = settings.includeBetaUpdates ?? isPrereleaseVersion(version);
   
   useEffect(() => {
     const fetchVersion = async () => {
@@ -56,25 +40,6 @@ function AboutSection({
     fetchVersion();
   }, []);
   
-  const handleCheckUpdates = async () => {
-    if (checkingUpdate) return;
-    setCheckingUpdate(true);
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const opened = await invoke('check_updates_and_open_window');
-      if (opened) {
-        toast.success(t('updater.updateWindowOpened'));
-      } else {
-        toast.info(t('updater.noUpdate'));
-      }
-    } catch (e) {
-      toast.error(t('updater.checkFailed', {
-        msg: formatUserMessage(e, t, 'errors.operationFailed'),
-      }));
-    } finally {
-      setCheckingUpdate(false);
-    }
-  };
   const handleCopyVersion = async () => {
     try {
       await copyTextToClipboard(`${t('settings.about.appName')} v${version}`);
@@ -131,14 +96,6 @@ function AboutSection({
         </div>
 
         <div className="flex flex-wrap gap-2 justify-center">
-          <Button
-            variant="primary"
-            icon={checkingUpdate ? <i className="ti ti-loader-2 animate-spin"></i> : <i className="ti ti-download"></i>}
-            onClick={handleCheckUpdates}
-            disabled={checkingUpdate}
-          >
-            {checkingUpdate ? t('updater.checking') : t('settings.about.checkUpdates')}
-          </Button>
           <Button variant="secondary" icon={<i className="ti ti-brand-github"></i>} onClick={handleOpenGitHub}>
             GitHub
           </Button>
@@ -148,49 +105,6 @@ function AboutSection({
           <Button variant="secondary" icon={<i className="ti ti-brand-bilibili"></i>} onClick={handleOpenBilibili}>
             Bilibili
           </Button>
-        </div>
-
-        <div className="rounded-lg border border-qc-border bg-qc-surface px-4">
-          <div className="pt-4 pb-2">
-            <h4 className="text-sm font-semibold text-qc-fg">
-              {t('settings.about.updateSettingsTitle')}
-            </h4>
-            <p className="mt-1 text-xs leading-relaxed text-qc-fg-muted">
-              {t('settings.about.updateSettingsDesc')}
-            </p>
-          </div>
-
-          <SettingItem
-            label={t('settings.about.updateInterval')}
-            description={t('settings.about.updateIntervalDesc')}
-          >
-            <Select
-              value={settings.updateCheckInterval || 'daily'}
-              onChange={value => onSettingChange('updateCheckInterval', value)}
-              options={updateIntervalOptions}
-              className="w-32"
-            />
-          </SettingItem>
-
-          <SettingItem
-            label={t('settings.about.includeBetaUpdates')}
-            description={t('settings.about.includeBetaUpdatesDesc')}
-          >
-            <Toggle
-              checked={includeBetaUpdates}
-              onChange={checked => onSettingChange('includeBetaUpdates', checked)}
-            />
-          </SettingItem>
-
-          <SettingItem
-            label={t('settings.about.disableUpdatePopup')}
-            description={t('settings.about.disableUpdatePopupDesc')}
-          >
-            <Toggle
-              checked={settings.disableUpdatePopup === true}
-              onChange={checked => onSettingChange('disableUpdatePopup', checked)}
-            />
-          </SettingItem>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">

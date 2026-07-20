@@ -15,7 +15,7 @@ import { useSettingsSync } from '@shared/hooks/useSettingsSync';
 import { useNavigationKeyboard } from '@shared/hooks/useNavigationKeyboard';
 import { useWindowAnimation } from '@shared/hooks/useWindowAnimation';
 import { applyBackgroundImage, clearBackgroundImage } from '@shared/utils/backgroundManager';
-import { getUpdateBannerState } from '@shared/api/settings';
+// import { getUpdateBannerState } from '@shared/api/settings';
 import { promptDisableWinVHotkeyIfNeeded } from '@shared/api/system';
 import { toggleWindowPin } from '@shared/services/titleBarActions';
 import { getVisibleMainTabs, isMainTabVisible } from '@shared/constants/tabVisibility';
@@ -65,7 +65,6 @@ function App() {
   const [contentFilter, setContentFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [emojiMode, setEmojiMode] = useState('emoji'); // 'emoji' | 'symbols' | 'images'
-  const [updateBannerState, setUpdateBannerState] = useState(null);
   const [isSidebarTabsLayout, setIsSidebarTabsLayout] = useState(getIsSidebarTabsLayout);
   const clipboardTabRef = useRef(null);
   const favoritesTabRef = useRef(null);
@@ -84,33 +83,6 @@ function App() {
     }
   }, [activeTab, settings.visibleOptionalTabs]);
 
-  useEffect(() => {
-    let mounted = true;
-
-    const loadUpdateBannerState = async () => {
-      try {
-        const state = await getUpdateBannerState();
-        if (mounted) {
-          setUpdateBannerState(state || null);
-        }
-      } catch (error) {
-        console.error('获取更新提示状态失败:', error);
-      }
-    };
-
-    const unlistenPromise = listen('update-banner-state-changed', (event) => {
-      setUpdateBannerState(event.payload || null);
-    });
-
-    loadUpdateBannerState();
-
-    return () => {
-      mounted = false;
-      unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
-    };
-  }, []);
-
-  // 启动时检查 Win+V
   useEffect(() => {
     const checkWinV = async () => {
       try {
@@ -492,7 +464,7 @@ function App() {
     transition-colors duration-500 ease-in-out
     bg-qc-surface
   `.trim().replace(/\s+/g, ' ');
-  const TitleBarComponent = <TitleBar ref={searchRef} searchQuery={searchQuery} onSearchChange={setSearchQuery} searchPlaceholder={t('search.placeholder')} position={settings.titleBarPosition} activeTab={activeTab} contentFilter={contentFilter} onFilterChange={setContentFilter} onTabChange={setActiveTab} updateBannerState={updateBannerState} />;
+  const TitleBarComponent = <TitleBar ref={searchRef} searchQuery={searchQuery} onSearchChange={setSearchQuery} searchPlaceholder={t('search.placeholder')} position={settings.titleBarPosition} activeTab={activeTab} contentFilter={contentFilter} onFilterChange={setContentFilter} onTabChange={setActiveTab} />;
   const TabNavigationComponent = <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} contentFilter={contentFilter} onFilterChange={setContentFilter} emojiMode={emojiMode} onEmojiModeChange={setEmojiMode} onGroupChange={handleGroupChange} groupsPopupRef={groupsPopupRef} navigationMode={tabNavigationMode} />;
   const ContentComponent = <div ref={contentDragRef} className="main-content-area flex-1 min-h-0 overflow-hidden relative pb-[8px] bg-qc-surface transition-colors duration-500">
       {activeTab === 'clipboard' && <ClipboardTab ref={clipboardTabRef} contentFilter={contentFilter} searchQuery={searchQuery} />}
