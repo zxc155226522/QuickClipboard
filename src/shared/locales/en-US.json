@@ -392,6 +392,7 @@
       "encryptionPasswordSaved": "WebDAV cloud encryption password saved",
       "encryptionPasswordCleared": "WebDAV cloud encryption password cleared",
       "clearEncryptionPassword": "Clear Encryption Password",
+      "useDefaultPassword": "Default Password",
       "rootPath": "WebDAV Directory",
       "rootPathPlaceholder": "quickclipboard",
       "testConnection": "Test Connection",

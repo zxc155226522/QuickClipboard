@@ -392,6 +392,7 @@
       "encryptionPasswordSaved": "WebDAV 云端加密密码已保存",
       "encryptionPasswordCleared": "WebDAV 云端加密密码已清除",
       "clearEncryptionPassword": "清除加密密码",
+      "useDefaultPassword": "默认密码",
       "rootPath": "WebDav目录",
       "rootPathPlaceholder": "quickclipboard",
       "testConnection": "测试连接",

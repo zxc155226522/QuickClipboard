@@ -210,6 +210,30 @@ function WebdavSection({ settings, onSettingChange }) {
     }
   };
 
+  const DEFAULT_ENCRYPTION_PASSWORD = 'Qc$9xKz#7mRf!2Lp@5WvN';
+
+  const applyDefaultEncryptionPassword = async () => {
+    setEncryptionPasswordDraft(DEFAULT_ENCRYPTION_PASSWORD);
+    setEncryptionPasswordFocused(true);
+    try {
+      setEncryptionPasswordBusy(true);
+      const saved = await setWebdavEncryptionPassword(
+        webdavUrl,
+        webdavUsername,
+        webdavRootPath,
+        DEFAULT_ENCRYPTION_PASSWORD
+      );
+      setEncryptionPasswordSaved(Boolean(saved));
+      setEncryptionPasswordDraft('');
+      setEncryptionPasswordFocused(false);
+      toast.success(t('settings.webdav.encryptionPasswordSaved'));
+    } catch (e) {
+      toast.error(webdavError(e), { duration: 6000 });
+    } finally {
+      setEncryptionPasswordBusy(false);
+    }
+  };
+
   const runAction = async (actionId, action, successKey, mode) => {
     if (!(await saveWebdavPasswordDraft())) return;
     if (!(await saveWebdavEncryptionPasswordDraft())) return;
@@ -361,6 +385,18 @@ function WebdavSection({ settings, onSettingChange }) {
             className="min-w-0 flex-1"
             disabled={encryptionPasswordBusy}
           />
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="shrink-0"
+            onClick={applyDefaultEncryptionPassword}
+            disabled={encryptionPasswordBusy}
+            loading={encryptionPasswordBusy}
+            icon={<i className="ti ti-shield-lock" />}
+          >
+            {t('settings.webdav.useDefaultPassword')}
+          </Button>
           {encryptionPasswordSaved && (
             <Button
               type="button"
