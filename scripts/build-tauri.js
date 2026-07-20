@@ -66,18 +66,18 @@ async function unlinkScreenshotSource() {
 async function main() {
   const isCommunity = process.env.QC_COMMUNITY === '1'
 
-  // 完整版构建前检测并恢复社区构建遗留的补丁文件（已手动注释私有依赖，跳过自动恢复）
-  // if (!isCommunity) {
-  //   ensureCleanWorkspace()
-  // }
+  // 完整版构建前检测并恢复社区构建遗留的补丁文件
+  if (!isCommunity) {
+    ensureCleanWorkspace()
+  }
 
   const hasScreenshotPlugin = !isCommunity && existsSync(
     path.join(rootDir, 'src-tauri', 'plugins', 'screenshot-suite', 'web', 'package.json')
   )
 
-  // if (!isCommunity) {
-  //   ensureCleanWorkspace()
-  // }
+  if (!isCommunity) {
+    ensureCleanWorkspace()
+  }
 
   try {
     if (hasScreenshotPlugin) {
