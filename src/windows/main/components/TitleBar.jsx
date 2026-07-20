@@ -43,7 +43,6 @@ import {
 } from "@shared/services/oneTimePaste";
 import { normalizeDisplayPriorityValue } from "@shared/utils/displayFormatPriority";
 import { formatUserMessage } from "@shared/utils/userMessages";
-import logoIcon from "@/assets/icon1024.png";
 import TitleBarSearch from "./TitleBarSearch";
 import Tooltip from "@shared/components/common/Tooltip.jsx";
 const ACTIVE_ICON_BUTTON_CLASS =
@@ -769,47 +768,12 @@ const TitleBar = forwardRef(
               }`
         } relative overflow-hidden shadow-sm transition-colors duration-500`}
       >
-        {/* 左侧：Logo + 搜索框 */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {showUpdateHint ? (
-            <Tooltip
-              content={t("updater.newVersionFound", {
-                version: updateBannerState.latestVersion,
-              })}
-              placement={tooltipPlacement}
-              asChild
-            >
-              <button
-                type="button"
-                className="relative flex h-7 w-7 items-center justify-center rounded-full border-2 border-emerald-500 bg-emerald-50/80 text-emerald-600 shadow-sm transition-all duration-200 hover:bg-emerald-100 dark:bg-emerald-500/12 dark:text-emerald-400"
-                onClick={handleOpenUpdater}
-                aria-label={t("updater.newVersionFound", {
-                  version: updateBannerState.latestVersion,
-                })}
-              >
-                <img
-                  src={logoIcon}
-                  alt="QuickClipboard"
-                  className="h-4.5 w-4.5 rounded-sm"
-                />
-                <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <i className="ti ti-arrow-big-up text-[12px] leading-none text-emerald-600 dark:text-emerald-400" />
-                </span>
-              </button>
-            </Tooltip>
-          ) : (
-            <div className="w-6 h-6 flex items-center justify-center pointer-events-none">
-              <img src={logoIcon} alt="QuickClipboard" className="w-5 h-5" />
-            </div>
-          )}
-        </div>
-
-        {/* 右侧：搜索框 + 工具按钮 */}
+        {/* 搜索框 + 工具按钮 */}
         <div
           className={`flex ${
             isVertical
               ? "flex-col items-center gap-2"
-              : "ml-2 min-w-0 flex-1 flex-row items-center justify-end gap-1"
+              : "min-w-0 flex-1 flex-row items-center justify-end gap-1"
           }`}
         >
           <TitleBarSearch
@@ -876,6 +840,28 @@ const TitleBar = forwardRef(
                 ></i>
               </button>
             </Tooltip>
+
+            {/* 更新提示 */}
+            {showUpdateHint && (
+              <Tooltip
+                content={t("updater.newVersionFound", {
+                  version: updateBannerState.latestVersion,
+                })}
+                placement={tooltipPlacement}
+                asChild
+              >
+                <button
+                  type="button"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg border border-emerald-500 bg-emerald-50/80 text-emerald-600 transition-all duration-200 hover:bg-emerald-100 dark:bg-emerald-500/12 dark:text-emerald-400"
+                  onClick={handleOpenUpdater}
+                  aria-label={t("updater.newVersionFound", {
+                    version: updateBannerState.latestVersion,
+                  })}
+                >
+                  <i className="ti ti-arrow-big-up" style={{ fontSize: 16 }} data-stroke="1.5"></i>
+                </button>
+              </Tooltip>
+            )}
 
             {/* 更多菜单 */}
             <Tooltip
