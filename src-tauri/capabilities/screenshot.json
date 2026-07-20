@@ -25,6 +25,6 @@
       "identifier": "fs:scope",
       "allow": [{ "path": "**" }]
     },
-    "dialog:allow-save",
+    "dialog:allow-save"
   ]
 }
