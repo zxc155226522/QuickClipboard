@@ -24,17 +24,10 @@ import {
   createSeparator,
 } from "@/plugins/context_menu/index.js";
 import { invoke } from "@tauri-apps/api/core";
-import { hideMainWindow } from "@shared/api/window";
 import { clearClipboardHistory } from "@shared/api";
 import { createTransferShelf } from "@shared/api/transferShelf";
 import { openReceiveBox } from "@shared/api/receiveBox";
 import { downloadWebdav, uploadWebdav } from "@shared/api/webdavSync";
-import {
-  startScreenshot,
-  startScreenshotQuickSave,
-  startScreenshotQuickPin,
-  startScreenshotQuickOcr,
-} from "@shared/api/system";
 import { toast, TOAST_SIZES, TOAST_POSITIONS } from "@shared/store/toastStore";
 import {
   getOneTimePasteEnabled,
@@ -262,25 +255,6 @@ const TitleBar = forwardRef(
         currentStore.enterMultiSelectMode();
       }
     };
-    const startScreenshotFromMenu = async (mode) => {
-      try {
-        await hideMainWindow();
-        const waitTime =
-          settingsStore.clipboardAnimationEnabled !== false ? 170 : 50;
-        await new Promise((resolve) => setTimeout(resolve, waitTime));
-        if (mode === "normal") {
-          await startScreenshot();
-        } else if (mode === "quick-save") {
-          await startScreenshotQuickSave();
-        } else if (mode === "quick-pin") {
-          await startScreenshotQuickPin();
-        } else if (mode === "quick-ocr") {
-          await startScreenshotQuickOcr();
-        }
-      } catch (error) {
-        console.error("标题栏启动截屏失败:", error);
-      }
-    };
 
     // 收藏按钮 - 切换到收藏tab，再次点击回到剪贴板tab，同时清空筛选
     const handleFavoriteToggle = (event) => {
@@ -386,34 +360,6 @@ const TitleBar = forwardRef(
         }),
       ];
 
-      const screenshotItem = createMenuItem({
-        id: "menu-screenshot-group",
-        label: t("tools.moreMenu.screenshot"),
-        icon: "ti ti-screenshot",
-        disabled: settingsSnap.screenshotEnabled === false,
-      });
-      screenshotItem.children = [
-        createMenuItem({
-          id: "menu-screenshot-normal",
-          label: t("tools.screenshot"),
-          icon: "ti ti-screenshot",
-        }),
-        createMenuItem({
-          id: "menu-screenshot-quick-save",
-          label: t("settings.shortcuts.screenshotQuickSave"),
-          icon: "ti ti-copy",
-        }),
-        createMenuItem({
-          id: "menu-screenshot-quick-pin",
-          label: t("settings.shortcuts.screenshotQuickPin"),
-          icon: "ti ti-pinned",
-        }),
-        createMenuItem({
-          id: "menu-screenshot-quick-ocr",
-          label: t("settings.shortcuts.screenshotQuickOcr"),
-          icon: "ti ti-text-scan-2",
-        }),
-      ];
       const previewItem = createMenuItem({
         id: "menu-preview-group",
         label: t("tools.moreMenu.contentPreview"),
@@ -513,7 +459,6 @@ const TitleBar = forwardRef(
         fileHubItem,
         webdavItem,
         createSeparator(),
-        screenshotItem,
         previewItem,
         displayPriorityItem,
         pasteItem,
@@ -572,18 +517,6 @@ const TitleBar = forwardRef(
       }
       switch (result) {
         // menu-emoji-tab 已移除
-        case "menu-screenshot-normal":
-          await startScreenshotFromMenu("normal");
-          break;
-        case "menu-screenshot-quick-save":
-          await startScreenshotFromMenu("quick-save");
-          break;
-        case "menu-screenshot-quick-pin":
-          await startScreenshotFromMenu("quick-pin");
-          break;
-        case "menu-screenshot-quick-ocr":
-          await startScreenshotFromMenu("quick-ocr");
-          break;
         case "menu-preview-text":
           try {
             await settingsStore.saveSetting(

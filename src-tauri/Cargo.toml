@@ -67,9 +67,6 @@ low-memory-fltk = { path = "plugins/low-memory-fltk" }
 ratatui = "0.29"
 crossterm = "0.28"
 trash = "5.2.6"
-
-# screenshot-suite = { path = "plugins/screenshot-suite", optional = true }
-
 # 图片查看器 (社区编译时不启用)
 # gpu-image-viewer = { git = "ssh://git@github.com/mosheng1/gpu-image-viewer.git", optional = true }
 # gpu-image-viewer = { path = "plugins/gpu-image-viewer", optional = true }
@@ -106,7 +103,6 @@ keyring = { version = "3.6.3", features = ["sync-secret-service", "crypto-rust"]
 [features]
 default = []
 # gpu-image-viewer = ["dep:gpu-image-viewer"]
-# screenshot-suite = ["dep:screenshot-suite"]
 custom-protocol = ["tauri/custom-protocol"]
 
 [profile.release]
