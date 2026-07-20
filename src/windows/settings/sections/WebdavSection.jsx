@@ -331,7 +331,7 @@ function WebdavSection({ settings, onSettingChange }) {
       <SettingItem label={t('settings.webdav.password')}>
         <div className="flex w-80 items-center gap-2">
           <Input
-            type="password"
+            type={passwordFocused ? 'text' : 'password'}
             value={passwordSaved && !passwordFocused && !passwordDraft ? '••••••••' : passwordDraft}
             onChange={e => setPasswordDraft(e.target.value)}
             onFocus={() => { setPasswordFocused(true); if (passwordSaved && !passwordDraft) setPasswordDraft(''); }}
@@ -374,7 +374,7 @@ function WebdavSection({ settings, onSettingChange }) {
       <SettingItem label={t('settings.webdav.encryptionPassword')} description={t('settings.webdav.encryptionPasswordDesc')}>
         <div className="flex w-80 items-center gap-2">
           <Input
-            type="password"
+            type={encryptionPasswordFocused ? 'text' : 'password'}
             value={encryptionPasswordSaved && !encryptionPasswordFocused && !encryptionPasswordDraft ? '••••••••' : encryptionPasswordDraft}
             onChange={e => setEncryptionPasswordDraft(e.target.value)}
             onFocus={() => { setEncryptionPasswordFocused(true); if (encryptionPasswordSaved && !encryptionPasswordDraft) setEncryptionPasswordDraft(''); }}
