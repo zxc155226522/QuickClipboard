@@ -165,9 +165,33 @@ fn backup_full_zip(dir: &Path) -> Result<Option<PathBuf>, String> {
     
     if let Ok(settings_path) = SettingsStorage::get_settings_path() {
         if settings_path.exists() {
-            if let Ok(mut f) = fs::File::open(&settings_path) {
+            if let Ok(settings_content) = fs::read_to_string(&settings_path) {
+                let mut settings_json: serde_json::Value = serde_json::from_str(&settings_content).unwrap_or_else(|_| {
+                    serde_json::Value::String(settings_content.clone())
+                });
+                if let Some(obj) = settings_json.as_object_mut() {
+                    let webdav_url = obj.get("webdavUrl").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+                    let webdav_username = obj.get("webdavUsername").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+                    let webdav_root_path = obj.get("webdavRootPath").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+                    let webdav_root_path = if webdav_root_path.is_empty() { "quickclipboard".to_string() } else { webdav_root_path };
+                    if !webdav_url.is_empty() && !webdav_username.is_empty() {
+                        if let Ok(Some(password)) = crate::services::secure_credentials::get_webdav_password(&webdav_url, &webdav_username) {
+                            if !password.is_empty() {
+                                obj.insert("_webdavPassword".to_string(), serde_json::Value::String(password));
+                            }
+                        }
+                    }
+                    if !webdav_url.is_empty() {
+                        if let Ok(Some(enc_password)) = crate::services::secure_credentials::get_webdav_encryption_password(&webdav_url, &webdav_username, &webdav_root_path) {
+                            if !enc_password.is_empty() {
+                                obj.insert("_webdavEncryptionPassword".to_string(), serde_json::Value::String(enc_password));
+                            }
+                        }
+                    }
+                }
+                let settings_bytes = serde_json::to_vec_pretty(&settings_json).unwrap_or_else(|_| settings_content.into_bytes());
                 let _ = zip.start_file("settings.json", options);
-                let _ = std::io::copy(&mut f, &mut zip);
+                let _ = std::io::copy(&mut std::io::Cursor::new(&settings_bytes), &mut zip);
             }
         }
     }
@@ -315,6 +339,29 @@ pub fn import_data_zip(zip_path: PathBuf, mode: &str) -> Result<String, String> 
             let _ = backup_full_zip(&current_dir_for_backup);
             let mut new_settings = if imported_settings.exists() {
                 let s = fs::read_to_string(&imported_settings).map_err(|e| e.to_string())?;
+                // 先解析为JSON以提取密码字段
+                let settings_value: serde_json::Value = serde_json::from_str(&s).map_err(|e| e.to_string())?;
+                // 恢复WebDAV密码到Keyring
+                if let Some(obj) = settings_value.as_object() {
+                    let webdav_url = obj.get("webdavUrl").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+                    let webdav_username = obj.get("webdavUsername").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+                    let webdav_root_path = obj.get("webdavRootPath").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+                    let webdav_root_path = if webdav_root_path.is_empty() { "quickclipboard".to_string() } else { webdav_root_path };
+                    if !webdav_url.is_empty() && !webdav_username.is_empty() {
+                        if let Some(serde_json::Value::String(password)) = obj.get("_webdavPassword") {
+                            if !password.is_empty() {
+                                let _ = crate::services::secure_credentials::set_webdav_password(&webdav_url, &webdav_username, password);
+                            }
+                        }
+                    }
+                    if !webdav_url.is_empty() {
+                        if let Some(serde_json::Value::String(enc_password)) = obj.get("_webdavEncryptionPassword") {
+                            if !enc_password.is_empty() {
+                                let _ = crate::services::secure_credentials::set_webdav_encryption_password(&webdav_url, &webdav_username, &webdav_root_path, enc_password);
+                            }
+                        }
+                    }
+                }
                 serde_json::from_str::<crate::services::AppSettings>(&s).map_err(|e| e.to_string())?
             } else {
                 get_settings()
@@ -1139,9 +1186,37 @@ pub fn export_data_zip(target_path: PathBuf) -> Result<PathBuf, String> {
     }
 
     if settings_path.exists() {
-        let mut f = fs::File::open(&settings_path).map_err(|e| format!("读取settings失败: {}", e))?;
+        // 读取settings.json并附加Keyring中的WebDAV密码
+        let settings_content = fs::read_to_string(&settings_path).map_err(|e| format!("读取settings失败: {}", e))?;
+        let mut settings_json: serde_json::Value = serde_json::from_str(&settings_content).unwrap_or_else(|_| {
+            // 如果JSON解析失败，使用原始内容
+            serde_json::Value::String(settings_content.clone())
+        });
+        if let Some(obj) = settings_json.as_object_mut() {
+            let webdav_url = obj.get("webdavUrl").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+            let webdav_username = obj.get("webdavUsername").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+            let webdav_root_path = obj.get("webdavRootPath").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+            let webdav_root_path = if webdav_root_path.is_empty() { "quickclipboard".to_string() } else { webdav_root_path };
+            // 附加WebDAV连接密码
+            if !webdav_url.is_empty() && !webdav_username.is_empty() {
+                if let Ok(Some(password)) = crate::services::secure_credentials::get_webdav_password(&webdav_url, &webdav_username) {
+                    if !password.is_empty() {
+                        obj.insert("_webdavPassword".to_string(), serde_json::Value::String(password));
+                    }
+                }
+            }
+            // 附加WebDAV加密密码
+            if !webdav_url.is_empty() {
+                if let Ok(Some(enc_password)) = crate::services::secure_credentials::get_webdav_encryption_password(&webdav_url, &webdav_username, &webdav_root_path) {
+                    if !enc_password.is_empty() {
+                        obj.insert("_webdavEncryptionPassword".to_string(), serde_json::Value::String(enc_password));
+                    }
+                }
+            }
+        }
+        let settings_bytes = serde_json::to_vec_pretty(&settings_json).unwrap_or_else(|_| settings_content.into_bytes());
         zip.start_file("settings.json", options).map_err(|e| e.to_string())?;
-        std::io::copy(&mut f, &mut zip).map_err(|e| e.to_string())?;
+        std::io::copy(&mut std::io::Cursor::new(&settings_bytes), &mut zip).map_err(|e| e.to_string())?;
     }
 
     zip.finish().map_err(|e| e.to_string())?;

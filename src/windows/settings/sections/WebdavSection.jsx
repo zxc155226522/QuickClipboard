@@ -175,7 +175,8 @@ function WebdavSection({ settings, onSettingChange }) {
   };
 
   const saveWebdavEncryptionPasswordDraft = async () => {
-    // 允许空加密密码
+    // 空密码不保存（强制密码）
+    if (!encryptionPasswordDraft) return true;
     try {
       setEncryptionPasswordBusy(true);
       const saved = await setWebdavEncryptionPassword(
