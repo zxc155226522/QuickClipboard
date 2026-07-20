@@ -836,13 +836,16 @@ pub fn restore_edge_snap_on_startup(window: &WebviewWindow) -> Result<(), String
     );
     set_hidden(true);
     
+    // 先隐藏窗口再移动位置，避免窗口在屏幕中心短暂闪现造成"两个窗口重叠"的视觉问题
+    let _ = window.hide();
+
     window.set_position(tauri::PhysicalPosition::new(resolved.x, resolved.y))
         .map_err(|e| e.to_string())?;
     save_snap_layout(resolved.edge, snapped_ratio, Some(resolved.monitor_id));
-    
+
     let _ = window.show();
     let _ = window.set_always_on_top(true);
-    
+
     super::state::set_window_state(super::state::WindowState::Hidden);
     
     crate::input_monitor::disable_mouse_monitoring();

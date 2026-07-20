@@ -1,0 +1,4 @@
+备份时间：2025年1月
+备份原因：修复启动时窗口显示两个窗口重叠的问题
+修改文件：src-tauri/src/windows/main_window/snap.rs
+修改内容：在 restore_edge_snap_on_startup 函数中，先隐藏窗口再移动位置，避免窗口在显示前出现在屏幕中心位置造成视觉重叠
