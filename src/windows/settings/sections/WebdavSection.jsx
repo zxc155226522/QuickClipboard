@@ -12,6 +12,7 @@ import { toast } from '@shared/store/toastStore';
 import {
   downloadAllWebdav,
   downloadWebdav,
+  downloadWebdavSettings,
   getWebdavLastReport,
   hasSavedWebdavEncryptionPassword,
   hasSavedWebdavPassword,
@@ -20,7 +21,8 @@ import {
   startWebdavScheduler,
   stopWebdavScheduler,
   testWebdavConnection,
-  uploadWebdav
+  uploadWebdav,
+  uploadWebdavSettings
 } from '@shared/api/webdavSync';
 
 function SubGroupTitle({ icon, title, description }) {
@@ -412,6 +414,12 @@ function WebdavSection({ settings, onSettingChange }) {
             </Button>
             <Button onClick={handleDownloadAll} disabled={Boolean(busy)} variant="secondary" icon={<i className="ti ti-restore" />}>
               {busy === 'downloadAllWebdav' ? t('settings.webdav.pullingAll') : t('settings.webdav.downloadAll')}
+            </Button>
+            <Button onClick={() => runAction('uploadWebdavSettings', uploadWebdavSettings, 'settings.webdav.uploadSettingsSuccess', 'push')} disabled={Boolean(busy)} variant="secondary" icon={<i className="ti ti-settings-up" />}>
+              {busy === 'uploadWebdavSettings' ? t('settings.webdav.pushing') : t('settings.webdav.uploadSettings')}
+            </Button>
+            <Button onClick={() => runAction('downloadWebdavSettings', downloadWebdavSettings, 'settings.webdav.downloadSettingsSuccess', 'pull')} disabled={Boolean(busy)} variant="secondary" icon={<i className="ti ti-settings-down" />}>
+              {busy === 'downloadWebdavSettings' ? t('settings.webdav.pulling') : t('settings.webdav.downloadSettings')}
             </Button>
           </div>
           {renderReportDetail()}

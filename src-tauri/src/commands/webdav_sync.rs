@@ -21,6 +21,16 @@ pub async fn webdav_download_all() -> Result<services::webdav_sync::SyncReport, 
 }
 
 #[tauri::command]
+pub async fn webdav_upload_settings() -> Result<(), String> {
+    services::webdav_sync::upload_settings().await
+}
+
+#[tauri::command]
+pub async fn webdav_download_settings() -> Result<(), String> {
+    services::webdav_sync::download_settings().await
+}
+
+#[tauri::command]
 pub fn webdav_get_status() -> Result<services::webdav_sync::WebdavStatus, String> {
     Ok(services::webdav_sync::status())
 }

@@ -47,3 +47,11 @@ export async function hasSavedWebdavEncryptionPassword(url, username, rootPath) 
 export async function setWebdavEncryptionPassword(url, username, rootPath, password) {
   return await invoke('webdav_set_encryption_password', { url, username, rootPath, password });
 }
+
+export async function uploadWebdavSettings() {
+  return await invoke('webdav_upload_settings');
+}
+
+export async function downloadWebdavSettings() {
+  return await invoke('webdav_download_settings');
+}

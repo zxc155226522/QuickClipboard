@@ -15,10 +15,54 @@ pub use types::{SyncReport, WebdavStatus};
 
 use types::WebdavConfig;
 use webdav_client::WebdavClient;
+use crate::services::settings::AppSettings;
 
 pub async fn test_connection() -> Result<(), String> {
     let client = build_client().await?;
     client.test_connection().await
+}
+
+pub async fn upload_settings() -> Result<(), String> {
+    let client = build_client().await?;
+    let _ = client.mkcol("").await; // 确保根目录存在
+    let settings = crate::services::get_settings();
+    let settings_json = serde_json::to_value(&settings)
+        .map_err(|e| format!("序列化配置失败: {}", e))?;
+    client.put_json("settings.json", &settings_json).await?;
+    Ok(())
+}
+
+pub async fn download_settings() -> Result<(), String> {
+    let client = build_client().await?;
+    let remote_settings: serde_json::Value = client.get_json("settings.json")
+        .await?
+        .ok_or_else(|| "云端暂无配置文件".to_string())?;
+    // 用远程配置覆盖本地配置（排除 webdav 相关字段以保持当前连接配置）
+    let mut local_settings = crate::services::get_settings();
+    let remote_obj = remote_settings.as_object()
+        .ok_or_else(|| "云端配置格式无效".to_string())?;
+    let local_json = serde_json::to_value(&local_settings)
+        .map_err(|e| format!("序列化本地配置失败: {}", e))?;
+    let local_obj = local_json.as_object()
+        .ok_or_else(|| "本地配置格式无效".to_string())?;
+    // 保留的 webdav 相关字段（不覆盖）
+    let preserve_keys = [
+        "webdavEnabled", "webdavUrl", "webdavUsername", "webdavRootPath",
+        "webdavSyncClipboard", "webdavSyncFavorites", "webdavSyncImages",
+        "webdavAutoPullOnWindowShow", "webdavAutoPush", "webdavPushDelaySecs",
+        "webdavAutoPull", "webdavPullIntervalSecs",
+    ];
+    let preserve_set: std::collections::HashSet<&str> = preserve_keys.iter().copied().collect();
+    let mut merged = remote_obj.clone();
+    for key in local_obj.keys() {
+        if preserve_set.contains(key.as_str()) {
+            merged.insert(key.clone(), local_obj[key].clone());
+        }
+    }
+    let merged_settings: AppSettings = serde_json::from_value(serde_json::Value::Object(merged))
+        .map_err(|e| format!("解析合并后的配置失败: {}", e))?;
+    crate::services::settings::update_settings(merged_settings)?;
+    Ok(())
 }
 
 pub async fn upload() -> Result<SyncReport, String> {

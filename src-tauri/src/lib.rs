@@ -315,6 +315,8 @@ pub fn run() {
                 commands::webdav_upload,
                 commands::webdav_download,
                 commands::webdav_download_all,
+                commands::webdav_upload_settings,
+                commands::webdav_download_settings,
                 commands::webdav_get_status,
                 commands::webdav_get_last_report,
                 commands::webdav_start_scheduler,
