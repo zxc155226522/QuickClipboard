@@ -80,9 +80,7 @@ export async function saveWindowSize(width, height) {
   return await invoke('save_window_size', { width, height })
 }
 
-export async function getUpdateBannerState() {
-  return await invoke('get_update_banner_state')
-}
+// getUpdateBannerState 已移除（更新功能已禁用）
 
 export async function getOneTimePasteEnabledFromStore() {
   return await invoke('get_one_time_paste_enabled')

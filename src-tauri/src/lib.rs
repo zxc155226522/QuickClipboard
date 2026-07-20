@@ -137,7 +137,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        // .plugin(tauri_plugin_updater::Builder::new().build()) // 已移除更新功能
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_drag::init())
         .plugin(tauri_plugin_store::Builder::new().build());
@@ -308,9 +308,9 @@ pub fn run() {
                 commands::play_scroll_sound,
                 commands::get_app_links_cmd,
                 commands::reload_all_windows,
-                commands::check_updates_and_open_window,
-                commands::get_update_banner_state,
-                commands::open_cached_update_window,
+                // commands::check_updates_and_open_window, // 已移除更新功能
+                // commands::get_update_banner_state, // 已移除更新功能
+                // commands::open_cached_update_window, // 已移除更新功能
                 commands::webdav_test_connection,
                 commands::webdav_upload,
                 commands::webdav_download,

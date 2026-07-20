@@ -111,7 +111,7 @@ fn build_pin_images_children() -> Vec<CtxMenuItem> {
 // 托盘菜单
 pub async fn show_tray_menu(app: AppHandle) -> Result<(), String> {
     let settings = crate::get_settings();
-    let is_force_update = crate::windows::updater_window::is_force_update_mode();
+    let is_force_update = false; // 已移除更新功能
     
     let hotkeys_label = if settings.hotkeys_enabled { "禁用快捷键" } else { "启用快捷键" };
     let monitor_label = if settings.clipboard_monitor { "禁用剪贴板监听" } else { "启用剪贴板监听" };

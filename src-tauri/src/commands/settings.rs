@@ -21,13 +21,7 @@ fn handle_disable_edge_hide(app: &tauri::AppHandle) {
     }
 }
 
-fn normalize_update_check_interval(value: &str) -> String {
-    match value {
-        "every3days" => "every3days".to_string(),
-        "weekly" => "weekly".to_string(),
-        _ => "daily".to_string(),
-    }
-}
+// normalize_update_check_interval 已移除（更新功能已禁用）
 
 fn capture_main_window_logical_size(app: &tauri::AppHandle) -> Option<(u32, u32)> {
     let window = app.get_webview_window("main")?;
@@ -110,7 +104,7 @@ pub fn save_settings(mut settings: AppSettings, app: tauri::AppHandle) -> Result
         handle_disable_edge_hide(&app);
     }
 
-    settings.update_check_interval = normalize_update_check_interval(&settings.update_check_interval);
+    // settings.update_check_interval 已移除（更新功能已禁用）
     if remember_window_size_enabled {
         settings.saved_window_size = capture_main_window_logical_size(&app);
     } else if !settings.remember_window_size {

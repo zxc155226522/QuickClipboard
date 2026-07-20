@@ -21,7 +21,7 @@ fn create_menu(app: &AppHandle) -> Result<Menu<tauri::Wry>, String> {
     let menu = Menu::new(app).map_err(|e| e.to_string())?;
 
     let settings = crate::get_settings();
-    let is_force_update = crate::windows::updater_window::is_force_update_mode();
+    let is_force_update = false; // 已移除更新功能
 
     let toggle = MenuItem::with_id(
         app,

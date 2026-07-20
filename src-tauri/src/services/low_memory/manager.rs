@@ -20,13 +20,13 @@ const WEBVIEW_LABELS: &[&str] = &[
     "settings",
     "text-editor",
     "screenshot",
-    "updater",
+    // "updater", // 已移除更新功能
 ];
 
 const AUTO_LOW_MEMORY_WINDOW_LABELS: &[&str] = &[
     "settings",
     "text-editor",
-    "updater",
+    // "updater", // 已移除更新功能
     "preview-window",
     "context-menu",
     "screenshot",

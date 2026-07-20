@@ -159,9 +159,7 @@ pub struct AppSettings {
     pub show_list_index: bool,
     pub show_badges: bool,
     pub show_source_icon: bool,
-    pub update_check_interval: String,
-    pub disable_update_popup: bool,
-    pub include_beta_updates: Option<bool>,
+    // update_check_interval, disable_update_popup, include_beta_updates 已移除（更新功能已禁用）
 
     // 快捷键设置
     pub hotkeys_enabled: bool,
@@ -344,9 +342,7 @@ impl Default for AppSettings {
             show_list_index: true,
             show_badges: true,
             show_source_icon: true,
-            update_check_interval: "daily".to_string(),
-            disable_update_popup: false,
-            include_beta_updates: None,
+            // update_check_interval, disable_update_popup, include_beta_updates 已移除
 
             hotkeys_enabled: true,
             navigate_up_shortcut: "ArrowUp".to_string(),

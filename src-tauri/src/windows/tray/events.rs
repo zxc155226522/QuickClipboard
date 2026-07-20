@@ -2,14 +2,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
 
+// 移除更新功能：不再检查强制更新
 pub fn handle_tray_click(app: &AppHandle) {
-    if crate::windows::updater_window::is_force_update_mode() {
-        if let Some(w) = app.get_webview_window("updater") {
-            let _ = w.show();
-            let _ = w.set_focus();
-        }
-        return;
-    }
     crate::toggle_main_window_visibility(app);
 }
 

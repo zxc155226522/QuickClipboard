@@ -6,7 +6,7 @@ pub mod tray;
 pub mod community_window;
 pub mod plugins;
 pub mod pin_image_window;
-pub mod updater_window;
+// pub mod updater_window; // 已移除更新功能
 pub mod preview_window;
 pub mod transfer_shelf;
 pub mod receive_box;
