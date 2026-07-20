@@ -70,7 +70,6 @@ function ClipboardItem({
   const {
     t
   } = useTranslation();
-  const isPasted = item.paste_count > 0;
   const {
     settings,
     getHeightClass,
@@ -721,8 +720,8 @@ function ClipboardItem({
           </Tooltip>
         </>
       )}
-      {settings.showBadges !== false && (hasFileMissing || item.is_pinned || isPasted) && (
-        <Tooltip content={hasFileMissing ? t('clipboard.fileNotFound', '文件不存在') : item.is_pinned ? t('contextMenu.pinned') : t('common.pasted')} placement="right" asChild>
+      {settings.showBadges !== false && (hasFileMissing || item.is_pinned) && (
+        <Tooltip content={hasFileMissing ? t('clipboard.fileNotFound', '文件不存在') : t('contextMenu.pinned')} placement="right" asChild>
           <div
             className={`absolute top-0 left-0 z-30 overflow-hidden ${isCardStyle ? 'rounded-tl-md' : ''}`}
             style={{ width: 20, height: 20 }}
@@ -735,20 +734,8 @@ function ClipboardItem({
               height: 0,
               borderStyle: 'solid',
               borderWidth: '20px 20px 0 0',
-              borderColor: (hasFileMissing ? 'rgba(239,68,68,1)' : isPasted ? 'rgba(255,209,79,1)' : 'rgba(59,130,246,1)') + ' transparent transparent transparent',
+              borderColor: (hasFileMissing ? 'rgba(239,68,68,1)' : 'rgba(59,130,246,1)') + ' transparent transparent transparent',
             }} />
-            {!hasFileMissing && item.is_pinned && isPasted && (
-              <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: 0,
-                height: 0,
-                borderStyle: 'solid',
-                borderWidth: '16px 16px 0 0',
-                borderColor: 'rgba(59,130,246,1) transparent transparent transparent',
-              }} />
-            )}
           </div>
         </Tooltip>
       )}

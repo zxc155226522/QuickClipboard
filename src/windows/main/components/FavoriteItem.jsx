@@ -220,8 +220,6 @@ function FavoriteItem({
     }
   });
 
-  const isPasted = item.paste_count > 0;
-
   // 拖拽开始时关闭预览
   useEffect(() => {
     if (isDragActive && previewEnabled) {
@@ -663,8 +661,8 @@ function FavoriteItem({
           </Tooltip>
         </>
       )}
-      {settings.showBadges !== false && (hasFileMissing || isPasted) && (
-        <Tooltip content={hasFileMissing ? t('clipboard.fileNotFound', '文件不存在') : t('common.pasted')} placement="right" asChild>
+      {settings.showBadges !== false && hasFileMissing && (
+        <Tooltip content={t('clipboard.fileNotFound', '文件不存在')} placement="right" asChild>
           <div
             className={`absolute top-0 left-0 z-30 overflow-hidden ${isCardStyle ? 'rounded-tl-md' : ''}`}
             style={{ width: 20, height: 20 }}
@@ -677,7 +675,7 @@ function FavoriteItem({
               height: 0,
               borderStyle: 'solid',
               borderWidth: '20px 20px 0 0',
-              borderColor: (hasFileMissing ? 'rgba(239,68,68,1)' : 'rgba(255,209,79,1)') + ' transparent transparent transparent',
+              borderColor: 'rgba(239,68,68,1) transparent transparent transparent',
             }} />
           </div>
         </Tooltip>
