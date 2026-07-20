@@ -44,9 +44,11 @@ function WebdavSection({ settings, onSettingChange }) {
   const [passwordDraft, setPasswordDraft] = useState('');
   const [passwordSaved, setPasswordSaved] = useState(false);
   const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const [encryptionPasswordDraft, setEncryptionPasswordDraft] = useState('');
   const [encryptionPasswordSaved, setEncryptionPasswordSaved] = useState(false);
   const [encryptionPasswordBusy, setEncryptionPasswordBusy] = useState(false);
+  const [encryptionPasswordFocused, setEncryptionPasswordFocused] = useState(false);
 
   const webdavUrl = String(settings.webdavUrl || '').trim();
   const webdavUsername = String(settings.webdavUsername || '').trim();
@@ -141,15 +143,14 @@ function WebdavSection({ settings, onSettingChange }) {
   const webdavError = (error) => formatUserMessage(error, t, 'errors.webdav.operationFailed');
 
   const saveWebdavPasswordDraft = async () => {
-    // 允许空密码：空密码表示不使用密码认证
+    // 空密码不保存（保留keyring中已有密码）
+    if (!passwordDraft) return true;
     try {
       setPasswordBusy(true);
       const saved = await setWebdavPassword(webdavUrl, webdavUsername, passwordDraft);
       setPasswordSaved(Boolean(saved));
       setPasswordDraft('');
-      if (passwordDraft) {
-        toast.success(t('settings.webdav.passwordSaved'));
-      }
+      toast.success(t('settings.webdav.passwordSaved'));
       return true;
     } catch (e) {
       toast.error(webdavError(e), { duration: 6000 });
@@ -306,13 +307,14 @@ function WebdavSection({ settings, onSettingChange }) {
         <div className="flex w-80 items-center gap-2">
           <Input
             type="password"
-            value={passwordDraft}
+            value={passwordSaved && !passwordFocused && !passwordDraft ? '••••••••' : passwordDraft}
             onChange={e => setPasswordDraft(e.target.value)}
-            onBlur={saveWebdavPasswordDraft}
+            onFocus={() => { setPasswordFocused(true); if (passwordSaved && !passwordDraft) setPasswordDraft(''); }}
+            onBlur={() => { setPasswordFocused(false); saveWebdavPasswordDraft(); }}
             onKeyDown={e => {
               if (e.key === 'Enter') e.currentTarget.blur();
             }}
-            placeholder={passwordSaved ? t('settings.webdav.passwordSavedPlaceholder') : t('settings.webdav.passwordPlaceholder')}
+            placeholder={t('settings.webdav.passwordPlaceholder')}
             className="min-w-0 flex-1"
             disabled={passwordBusy}
           />
@@ -348,13 +350,14 @@ function WebdavSection({ settings, onSettingChange }) {
         <div className="flex w-80 items-center gap-2">
           <Input
             type="password"
-            value={encryptionPasswordDraft}
+            value={encryptionPasswordSaved && !encryptionPasswordFocused && !encryptionPasswordDraft ? '••••••••' : encryptionPasswordDraft}
             onChange={e => setEncryptionPasswordDraft(e.target.value)}
-            onBlur={saveWebdavEncryptionPasswordDraft}
+            onFocus={() => { setEncryptionPasswordFocused(true); if (encryptionPasswordSaved && !encryptionPasswordDraft) setEncryptionPasswordDraft(''); }}
+            onBlur={() => { setEncryptionPasswordFocused(false); saveWebdavEncryptionPasswordDraft(); }}
             onKeyDown={e => {
               if (e.key === 'Enter') e.currentTarget.blur();
             }}
-            placeholder={encryptionPasswordSaved ? t('settings.webdav.encryptionPasswordSavedPlaceholder') : t('settings.webdav.encryptionPasswordPlaceholder')}
+            placeholder={t('settings.webdav.encryptionPasswordPlaceholder')}
             className="min-w-0 flex-1"
             disabled={encryptionPasswordBusy}
           />

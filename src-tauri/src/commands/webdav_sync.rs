@@ -63,11 +63,12 @@ pub fn webdav_has_saved_password(url: String, username: String) -> Result<bool, 
 #[tauri::command]
 pub fn webdav_set_password(url: String, username: String, password: String) -> Result<bool, String> {
     if password.is_empty() {
+        // 空密码不删除已有密码，只是不保存（保留keyring中已有密码）
         if url.trim().is_empty() || username.trim().is_empty() {
             return Ok(false);
         }
-        services::secure_credentials::delete_webdav_password(&url, &username)?;
-        return Ok(false);
+        // 返回当前是否已有保存的密码
+        return services::secure_credentials::has_webdav_password(&url, &username);
     }
     services::secure_credentials::set_webdav_password(&url, &username, &password)?;
     Ok(true)
@@ -94,11 +95,12 @@ pub fn webdav_set_encryption_password(
 ) -> Result<bool, String> {
     services::webdav_sync::crypto::clear_cached_keys();
     if password.is_empty() {
+        // 空密码不删除已有加密密码，只是不保存
         if url.trim().is_empty() {
             return Ok(false);
         }
-        services::secure_credentials::delete_webdav_encryption_password(&url, &username, &root_path)?;
-        return Ok(false);
+        // 返回当前是否已有保存的加密密码
+        return services::secure_credentials::has_webdav_encryption_password(&url, &username, &root_path);
     }
     services::secure_credentials::set_webdav_encryption_password(&url, &username, &root_path, &password)?;
     Ok(true)
