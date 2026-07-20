@@ -48,7 +48,7 @@ function patchCapabilityFile(filePath) {
 function patchCargoToml() {
     if (!fs.existsSync(cargoTomlPath)) return () => {};
 
-    ensureCleanWorkspace();
+    // ensureCleanWorkspace(); // 已手动注释私有依赖，跳过自动恢复
 
     const original = fs.readFileSync(cargoTomlPath, 'utf8');
     // 保持原始换行符（CRLF/LF），避免 Windows 上格式变化
@@ -127,8 +127,8 @@ console.log(`[build] 版本: ${edition}`);
 console.log(`[build] 模式: ${isDev ? '开发' : '生产'}`);
 console.log(`[build] 执行: npm ${args.join(' ')}`);
 
-// 修补前先检测并恢复上次中断残留的补丁文件
-ensureCleanWorkspace();
+// 修补前先检测并恢复上次中断残留的补丁文件（已手动注释私有依赖，跳过自动恢复）
+// ensureCleanWorkspace();
 
 let restored = false;
 const restorePatches = patchForCommunity();
