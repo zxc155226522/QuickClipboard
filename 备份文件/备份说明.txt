@@ -1,0 +1,10 @@
+备份时间: 2025年7月20日
+备份原因: 修改序号显示位置（从右侧浮动改为左侧内联）
+
+修改文件:
+- src/windows/main/components/ClipboardItem.jsx
+- src/windows/main/components/FavoriteItem.jsx
+
+修改内容:
+1. 将序号（index+1）从右侧浮动容器（floatingControlsClasses）中移出
+2. 将序号放到左侧内容区，内联显示，始终可见，不依赖 hover

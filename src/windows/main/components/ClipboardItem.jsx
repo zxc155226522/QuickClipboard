@@ -805,15 +805,15 @@ function ClipboardItem({
             </span>
           </Tooltip>
         )}
-        {/* 序号 */}
-        {showIndex && <span className={`${numberBadgeClasses} pointer-events-none`}>
-          {index + 1}
-        </span>}
       </div>
 
       {isCompactHeight ?
         // 小行高模式：显示内容（隐藏时间）
         <div className="flex items-center gap-2 h-full overflow-hidden">
+          {/* 序号 - 左侧内联 */}
+          {showIndex && <span className={`${numberBadgeClasses} flex-shrink-0 pointer-events-none`}>
+            {index + 1}
+          </span>}
           <div className="flex-1 min-w-0 overflow-hidden h-full">
             {renderContent(true, false, {
               availableHeightPx: Math.max(compactRowHeightPx - 16, 16),
@@ -826,6 +826,10 @@ function ClipboardItem({
         <>
           {/* 时间戳 */}
           <div className="flex items-center flex-shrink-0 mb-0.5 h-5">
+            {/* 序号 - 左侧内联 */}
+            {showIndex && <span className={`${numberBadgeClasses} flex-shrink-0 mr-2 pointer-events-none`}>
+              {index + 1}
+            </span>}
             <span className="text-xs leading-5 text-qc-fg-subtle opacity-70">
               {formatTime()}
               {item.char_count != null && (

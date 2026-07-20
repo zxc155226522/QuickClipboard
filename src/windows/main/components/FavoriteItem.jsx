@@ -721,13 +721,13 @@ function FavoriteItem({
             </span>
           </Tooltip>
         )}
-        {/* 序号 */}
-        {showIndex && <span className={`${numberBadgeClasses} pointer-events-none`}>
-          {index + 1}
-        </span>}
       </div>
 
       {isCompactHeight ? <div className="flex items-center gap-2 h-full overflow-hidden">
+        {/* 序号 - 左侧内联 */}
+        {showIndex && <span className={`${numberBadgeClasses} flex-shrink-0 pointer-events-none`}>
+          {index + 1}
+        </span>}
         {hasTitle ? (
           <p className="flex-1 min-w-0 truncate pr-16 text-sm font-semibold leading-5 text-qc-fg">
             {searchKeyword ? highlightText(titleText, searchKeyword) : titleText}
@@ -744,6 +744,10 @@ function FavoriteItem({
       </div> : <>
         {/* 时间戳 */}
         <div className="flex items-center flex-shrink-0 mb-0.5 h-5">
+          {/* 序号 - 左侧内联 */}
+          {showIndex && <span className={`${numberBadgeClasses} flex-shrink-0 mr-2 pointer-events-none`}>
+            {index + 1}
+          </span>}
           <span className="text-xs leading-5 text-qc-fg-subtle opacity-70">
             {formatTime()}
             {item.char_count != null && (

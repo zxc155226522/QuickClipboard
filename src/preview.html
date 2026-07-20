@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>序号布局预览</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f9f9f9;
+      color: #111827;
+      padding: 20px;
+    }
+    .preview-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 16px;
+      color: #333;
+    }
+    .preview-section {
+      margin-bottom: 24px;
+    }
+    .preview-section h3 {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 8px;
+      padding-left: 4px;
+    }
+
+    /* 模拟剪贴板项目 */
+    .clipboard-item {
+      display: flex;
+      flex-direction: column;
+      padding: 8px 10px;
+      border-bottom: 1px rgba(17, 24, 39, 0.12) solid;
+      background: transparent;
+      position: relative;
+    }
+    .clipboard-item.card-style {
+      border-bottom: none;
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      margin-bottom: 4px;
+    }
+
+    /* 修改后：序号在左侧 */
+    .item-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 2px;
+    }
+    .number-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 20px;
+      padding: 0 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #2563eb;
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      border-radius: 6px;
+      background: rgba(249, 249, 249, 0.8);
+      backdrop-filter: blur(8px);
+      flex-shrink: 0;
+    }
+    .timestamp {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+    .content {
+      font-size: 14px;
+      line-height: 1.5;
+      overflow: hidden;
+      color: #111827;
+    }
+
+    /* 右侧操作按钮（悬浮显示） */
+    .floating-controls {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .action-btn {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      background: rgba(249, 249, 249, 0.8);
+      font-size: 11px;
+      color: #9ca3af;
+    }
+    .shortcut-badge {
+      height: 20px;
+      padding: 0 6px;
+      font-size: 12px;
+      color: #9ca3af;
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      border-radius: 6px;
+      background: rgba(249, 249, 249, 0.8);
+      display: flex;
+      align-items: center;
+    }
+
+    /* 对比：修改前 */
+    .before .number-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      /* 修改前序号在右上角浮动容器内 */
+    }
+
+    .arrow {
+      text-align: center;
+      font-size: 24px;
+      color: #10b981;
+      margin: 12px 0;
+    }
+    .label {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .label-new { background: #d1fae5; color: #065f46; }
+    .label-old { background: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body>
+
+  <div class="preview-title">序号布局修改预览</div>
+
+  <!-- 修改前 -->
+  <div class="preview-section">
+    <h3><span class="label label-old">修改前</span> 序号在右上角浮动容器内（与操作按钮一起）</h3>
+    <div class="clipboard-item before" style="position: relative;">
+      <div class="floating-controls" style="position: static; margin-bottom: 4px;">
+        <!-- 操作按钮 + 序号都在右侧浮动 -->
+        <div style="display:flex; gap:4px; align-items:center;">
+          <div class="action-btn">★</div>
+          <div class="action-btn">✎</div>
+          <div class="action-btn">🗑</div>
+          <div class="action-btn">📌</div>
+          <div class="shortcut-badge">Ctrl+1</div>
+          <div class="number-badge">1</div>
+        </div>
+      </div>
+      <div class="timestamp">10:30 昨天</div>
+      <div class="content">这是一段剪贴板内容示例，用来展示序号在修改前的位置。</div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 修改后 -->
+  <div class="preview-section">
+    <h3><span class="label label-new">修改后</span> 序号在左侧时间旁边（内联显示，始终可见）</h3>
+    <div class="clipboard-item">
+      <!-- 右侧只剩下操作按钮（悬浮显示） -->
+      <div class="floating-controls">
+        <div class="action-btn">★</div>
+        <div class="action-btn">✎</div>
+        <div class="action-btn">🗑</div>
+        <div class="action-btn">📌</div>
+        <div class="shortcut-badge">Ctrl+1</div>
+      </div>
+      <div class="item-row">
+        <div class="number-badge">1</div>
+        <div class="timestamp">10:30 昨天</div>
+      </div>
+      <div class="content">这是一段剪贴板内容示例，用来展示序号在修改后的位置。</div>
+    </div>
+    <div class="clipboard-item">
+      <div class="floating-controls">
+        <div class="action-btn">★</div>
+        <div class="action-btn">✎</div>
+        <div class="action-btn">🗑</div>
+        <div class="action-btn">📌</div>
+        <div class="shortcut-badge">Ctrl+2</div>
+      </div>
+      <div class="item-row">
+        <div class="number-badge">2</div>
+        <div class="timestamp">09:15 昨天</div>
+      </div>
+      <div class="content">另一段剪贴板内容，序号显示在左侧。</div>
+    </div>
+    <div class="clipboard-item">
+      <div class="floating-controls">
+        <div class="action-btn">★</div>
+        <div class="action-btn">✎</div>
+        <div class="action-btn">🗑</div>
+        <div class="action-btn">📌</div>
+        <div class="shortcut-badge">Ctrl+3</div>
+      </div>
+      <div class="item-row">
+        <div class="number-badge">3</div>
+        <div class="timestamp">昨天 18:42</div>
+      </div>
+      <div class="content">又一条内容示例。</div>
+    </div>
+  </div>
+
+  <div class="preview-section" style="margin-top: 24px;">
+    <h3><span class="label label-new">卡片样式（card-style）同样适用</span></h3>
+    <div class="clipboard-item card-style">
+      <div class="floating-controls">
+        <div class="action-btn">★</div>
+        <div class="action-btn">🗑</div>
+        <div class="action-btn">📌</div>
+        <div class="shortcut-badge">Ctrl+1</div>
+      </div>
+      <div class="item-row">
+        <div class="number-badge">1</div>
+        <div class="timestamp">10:30 昨天</div>
+      </div>
+      <div class="content">卡片样式下的序号布局。</div>
+    </div>
+  </div>
+
+</body>
+</html>
