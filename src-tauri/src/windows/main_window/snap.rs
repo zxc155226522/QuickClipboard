@@ -715,6 +715,9 @@ pub fn show_snapped_window(window: &WebviewWindow) -> Result<(), String> {
 
     crate::input_monitor::enable_mouse_monitoring();
     crate::input_monitor::enable_navigation_keys();
+
+    // 预热预览窗口，使首次悬停时无需等待 WebView2 冷启动
+    crate::windows::preview_window::warmup_preview_window(&window.app_handle());
     
     Ok(())
 }

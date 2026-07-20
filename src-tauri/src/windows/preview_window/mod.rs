@@ -378,6 +378,68 @@ pub fn resume_preview_after_main_window_show() {
     PREVIEW_HIDE_WATCHDOG_VERSION.fetch_add(1, Ordering::SeqCst);
 }
 
+/// 预热预览窗口：在后台异步创建 WebView 窗口但保持隐藏，
+/// 使首次悬停时直接走窗口复用路径，避免 WebView2 冷启动延迟。
+pub fn warmup_preview_window(app: &AppHandle) {
+    if PREVIEW_SUPPRESSED.load(Ordering::SeqCst) {
+        return;
+    }
+
+    // 窗口已存在则无需预热
+    if app.get_webview_window(PREVIEW_WINDOW_LABEL).is_some() {
+        return;
+    }
+
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        // 获取主显示器信息用于创建窗口
+        let monitor = match app.primary_monitor() {
+            Ok(Some(m)) => m,
+            Ok(None) | Err(_) => {
+                eprintln!("预热预览窗口：获取主显示器信息失败");
+                return;
+            }
+        };
+        let work_area = monitor.work_area();
+        let scale_factor = monitor.scale_factor();
+        let work_area_x = work_area.position.x;
+        let work_area_y = work_area.position.y;
+        let work_area_width = work_area.size.width;
+        let work_area_height = work_area.size.height;
+
+        let mut last_error = None;
+        for _ in 0..3 {
+            match create_preview_window(
+                &app,
+                work_area_x,
+                work_area_y,
+                work_area_width,
+                work_area_height,
+                scale_factor,
+            ) {
+                Ok(_window) => {
+                    // 窗口创建成功，保持隐藏状态即可
+                    // 预览数据将在实际 show_preview_window 时通过 emit 注入
+                    return;
+                }
+                Err(error) => {
+                    if error.contains("already exists") {
+                        // 窗口已存在（并发情况），无需继续
+                        return;
+                    }
+                    last_error = Some(error);
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    continue;
+                }
+            }
+        }
+
+        if let Some(error) = last_error {
+            eprintln!("预热预览窗口失败: {}", error);
+        }
+    });
+}
+
 pub fn force_close_preview_window(app: &AppHandle) {
     PREVIEW_REQUEST_VERSION.fetch_add(1, Ordering::SeqCst);
     PREVIEW_DESTROY_TIMER_VERSION.fetch_add(1, Ordering::SeqCst);
