@@ -26,8 +26,28 @@ pub async fn upload_settings() -> Result<(), String> {
     let client = build_client().await?;
     let _ = client.mkcol("").await; // 确保根目录存在
     let settings = crate::services::get_settings();
-    let settings_json = serde_json::to_value(&settings)
+    let mut settings_json = serde_json::to_value(&settings)
         .map_err(|e| format!("序列化配置失败: {}", e))?;
+    // 附带 keyring 中的密码（如果有的话），方便在另一台设备上恢复
+    if let Some(obj) = settings_json.as_object_mut() {
+        let webdav_url = settings.webdav_url.trim().to_string();
+        let webdav_username = settings.webdav_username.trim().to_string();
+        let webdav_root_path = if settings.webdav_root_path.trim().is_empty() {
+            "quickclipboard".to_string()
+        } else {
+            settings.webdav_root_path.clone()
+        };
+        if !webdav_url.is_empty() && !webdav_username.is_empty() {
+            if let Ok(Some(password)) = crate::services::secure_credentials::get_webdav_password(&webdav_url, &webdav_username) {
+                obj.insert("_webdavPassword".to_string(), serde_json::Value::String(password));
+            }
+        }
+        if !webdav_url.is_empty() {
+            if let Ok(Some(enc_password)) = crate::services::secure_credentials::get_webdav_encryption_password(&webdav_url, &webdav_username, &webdav_root_path) {
+                obj.insert("_webdavEncryptionPassword".to_string(), serde_json::Value::String(enc_password));
+            }
+        }
+    }
     client.put_json("settings.json", &settings_json).await?;
     Ok(())
 }
@@ -79,6 +99,28 @@ pub async fn download_settings() -> Result<(), String> {
     }
     let merged_settings: AppSettings = serde_json::from_value(serde_json::Value::Object(merged))
         .map_err(|e| format!("解析合并后的配置失败: {}", e))?;
+    // 恢复密码到 keyring（从 _webdavPassword 和 _webdavEncryptionPassword 字段）
+    let merged_url = merged_settings.webdav_url.trim().to_string();
+    let merged_username = merged_settings.webdav_username.trim().to_string();
+    let merged_root_path = if merged_settings.webdav_root_path.trim().is_empty() {
+        "quickclipboard".to_string()
+    } else {
+        merged_settings.webdav_root_path.clone()
+    };
+    if !merged_url.is_empty() && !merged_username.is_empty() {
+        if let Some(serde_json::Value::String(password)) = remote_obj.get("_webdavPassword") {
+            if !password.is_empty() {
+                let _ = crate::services::secure_credentials::set_webdav_password(&merged_url, &merged_username, password);
+            }
+        }
+    }
+    if !merged_url.is_empty() {
+        if let Some(serde_json::Value::String(enc_password)) = remote_obj.get("_webdavEncryptionPassword") {
+            if !enc_password.is_empty() {
+                let _ = crate::services::secure_credentials::set_webdav_encryption_password(&merged_url, &merged_username, &merged_root_path, enc_password);
+            }
+        }
+    }
     crate::services::settings::update_settings(merged_settings)?;
     Ok(())
 }
