@@ -307,12 +307,27 @@ const TitleBar = forwardRef(
       }
     };
 
-    // 收藏按钮 - 切换到收藏tab，再次点击回到剪贴板tab
+    // 收藏按钮 - 切换到收藏tab，再次点击回到剪贴板tab，同时清空筛选
     const handleFavoriteToggle = (event) => {
       event.preventDefault();
       event.stopPropagation();
+      if (onFilterChange && contentFilter !== "all") {
+        onFilterChange("all");
+      }
       if (onTabChange) {
         onTabChange(activeTab === "favorites" ? "clipboard" : "favorites");
+      }
+    };
+
+    // 全部按钮 - 切回剪贴板tab + 清空筛选
+    const handleAllClick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (onFilterChange && contentFilter !== "all") {
+        onFilterChange("all");
+      }
+      if (onTabChange && activeTab !== "clipboard") {
+        onTabChange("clipboard");
       }
     };
 
@@ -815,8 +830,8 @@ const TitleBar = forwardRef(
             <FilterIconButton
               icon="ti ti-category"
               label={t("filter.all") || "全部"}
-              isActive={contentFilter === "all"}
-              onClick={() => onFilterChange && onFilterChange("all")}
+              isActive={contentFilter === "all" && activeTab === "clipboard"}
+              onClick={handleAllClick}
             />
 
             {/* 收藏按钮 */}
