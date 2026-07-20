@@ -492,7 +492,7 @@ function App() {
     transition-colors duration-500 ease-in-out
     bg-qc-surface
   `.trim().replace(/\s+/g, ' ');
-  const TitleBarComponent = <TitleBar ref={searchRef} searchQuery={searchQuery} onSearchChange={setSearchQuery} searchPlaceholder={t('search.placeholder')} position={settings.titleBarPosition} activeTab={activeTab} updateBannerState={updateBannerState} />;
+  const TitleBarComponent = <TitleBar ref={searchRef} searchQuery={searchQuery} onSearchChange={setSearchQuery} searchPlaceholder={t('search.placeholder')} position={settings.titleBarPosition} activeTab={activeTab} contentFilter={contentFilter} onFilterChange={setContentFilter} onTabChange={setActiveTab} updateBannerState={updateBannerState} />;
   const TabNavigationComponent = <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} contentFilter={contentFilter} onFilterChange={setContentFilter} emojiMode={emojiMode} onEmojiModeChange={setEmojiMode} onGroupChange={handleGroupChange} groupsPopupRef={groupsPopupRef} navigationMode={tabNavigationMode} />;
   const ContentComponent = <div ref={contentDragRef} className="main-content-area flex-1 min-h-0 overflow-hidden relative pb-[8px] bg-qc-surface transition-colors duration-500">
       {activeTab === 'clipboard' && <ClipboardTab ref={clipboardTabRef} contentFilter={contentFilter} searchQuery={searchQuery} />}
@@ -512,7 +512,6 @@ function App() {
     }
 
     return <div className="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden">
-        {TabNavigationComponent}
         {ContentComponent}
         {ActionBarComponent}
       </div>;
@@ -552,7 +551,6 @@ function App() {
       default:
         return <>
             {TitleBarComponent}
-            {TabNavigationComponent}
             {ContentComponent}
             {ActionBarComponent}
           </>;

@@ -48,6 +48,8 @@ import TitleBarSearch from "./TitleBarSearch";
 import Tooltip from "@shared/components/common/Tooltip.jsx";
 const ACTIVE_ICON_BUTTON_CLASS =
   "bg-blue-500 bg-dynamic-primary text-white hover:bg-blue-600";
+const ACTIVE_FILTER_CLASS =
+  "bg-[var(--qc-accent)] text-[var(--qc-accent-fg)] shadow-sm";
 const TOAST_CONFIG = {
   size: TOAST_SIZES.EXTRA_SMALL,
   position: TOAST_POSITIONS.BOTTOM_RIGHT,
@@ -60,6 +62,9 @@ const TitleBar = forwardRef(
       searchPlaceholder,
       position = "top",
       activeTab = "clipboard",
+      contentFilter = "all",
+      onFilterChange,
+      onTabChange,
       updateBannerState = null,
     },
     ref,
@@ -301,6 +306,25 @@ const TitleBar = forwardRef(
         console.error("标题栏启动截屏失败:", error);
       }
     };
+
+    // 收藏按钮 - 切换到收藏tab，再次点击回到剪贴板tab
+    const handleFavoriteToggle = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (onTabChange) {
+        onTabChange(activeTab === "favorites" ? "clipboard" : "favorites");
+      }
+    };
+
+    // 筛选按钮处理
+    const handleFilterClick = (filterId) => (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (onFilterChange) {
+        onFilterChange(contentFilter === filterId ? "all" : filterId);
+      }
+    };
+
     const handleMoreMenu = async (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -346,6 +370,41 @@ const TitleBar = forwardRef(
           option.value,
         ]),
       );
+
+      // 筛选子菜单
+      const filterItem = createMenuItem({
+        id: "menu-filter-group",
+        label: t("tools.moreMenu.contentFilter", "内容筛选"),
+        icon: "ti ti-filter",
+      });
+      filterItem.children = [
+        createMenuItem({
+          id: "menu-filter-all",
+          label: t("filter.all") || "全部",
+          icon: checkIcon(contentFilter === "all"),
+        }),
+        createMenuItem({
+          id: "menu-filter-text",
+          label: t("filter.text") || "文本",
+          icon: checkIcon(contentFilter === "text"),
+        }),
+        createMenuItem({
+          id: "menu-filter-image",
+          label: t("filter.image") || "图片",
+          icon: checkIcon(contentFilter === "image"),
+        }),
+        createMenuItem({
+          id: "menu-filter-file",
+          label: t("filter.file") || "文件",
+          icon: checkIcon(contentFilter === "file"),
+        }),
+        createMenuItem({
+          id: "menu-filter-link",
+          label: t("filter.link") || "链接",
+          icon: checkIcon(contentFilter === "link"),
+        }),
+      ];
+
       const screenshotItem = createMenuItem({
         id: "menu-screenshot-group",
         label: t("tools.moreMenu.screenshot"),
@@ -467,6 +526,13 @@ const TitleBar = forwardRef(
         }),
       ];
       const menuItems = [
+        filterItem,
+        createMenuItem({
+          id: "menu-emoji-tab",
+          label: t("emoji.title") || "符号",
+          icon: "ti ti-mood-smile",
+        }),
+        createSeparator(),
         fileHubItem,
         webdavItem,
         createSeparator(),
@@ -511,7 +577,28 @@ const TitleBar = forwardRef(
         }
         return;
       }
+      // 筛选菜单处理
+      const filterMenuIds = ["menu-filter-all", "menu-filter-text", "menu-filter-image", "menu-filter-file", "menu-filter-link"];
+      const filterIdMap = {
+        "menu-filter-all": "all",
+        "menu-filter-text": "text",
+        "menu-filter-image": "image",
+        "menu-filter-file": "file",
+        "menu-filter-link": "link",
+      };
+      if (filterMenuIds.includes(result)) {
+        const targetFilter = filterIdMap[result];
+        if (onFilterChange) {
+          onFilterChange(targetFilter);
+        }
+        return;
+      }
       switch (result) {
+        case "menu-emoji-tab":
+          if (onTabChange) {
+            onTabChange("emoji");
+          }
+          break;
         case "menu-screenshot-normal":
           await startScreenshotFromMenu("normal");
           break;
@@ -640,11 +727,43 @@ const TitleBar = forwardRef(
         return searchRef.current?.isFocused?.() === true;
       },
     }));
+
+    // 筛选按钮的图标按钮组件
+    const FilterIconButton = ({ icon, label, isActive, onClick }) => (
+      <Tooltip content={label} placement={tooltipPlacement} asChild>
+        <button
+          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-200 ${
+            isActive
+              ? ACTIVE_FILTER_CLASS
+              : "hover:bg-qc-hover text-qc-fg-muted"
+          }`}
+          onClick={onClick}
+          aria-label={label}
+          type="button"
+        >
+          <i className={icon} style={{ fontSize: 16 }} data-stroke="1.5"></i>
+        </button>
+      </Tooltip>
+    );
+
     return (
       <div
         ref={dragRef}
-        className={`title-bar flex-shrink-0 flex ${isVertical ? `w-10 h-full flex-col items-center justify-between py-2 bg-qc-panel ${position === "left" ? "border-r border-qc-border" : "border-l border-qc-border"}` : `h-9 flex-row items-center justify-between px-2 bg-qc-panel ${position === "top" ? "border-b border-qc-border" : "border-t border-qc-border"}`} relative overflow-hidden shadow-sm transition-colors duration-500`}
+        className={`title-bar flex-shrink-0 flex ${
+          isVertical
+            ? `w-10 h-full flex-col items-center justify-between py-2 bg-qc-panel ${
+                position === "left"
+                  ? "border-r border-qc-border"
+                  : "border-l border-qc-border"
+              }`
+            : `h-9 flex-row items-center justify-between px-2 bg-qc-panel ${
+                position === "top"
+                  ? "border-b border-qc-border"
+                  : "border-t border-qc-border"
+              }`
+        } relative overflow-hidden shadow-sm transition-colors duration-500`}
       >
+        {/* 左侧：Logo + 搜索框 */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {showUpdateHint ? (
             <Tooltip
@@ -679,8 +798,13 @@ const TitleBar = forwardRef(
           )}
         </div>
 
+        {/* 右侧：搜索框 + 工具按钮 */}
         <div
-          className={`flex ${isVertical ? "flex-col items-center gap-2" : "ml-2 min-w-0 flex-1 flex-row items-center justify-end gap-1"}`}
+          className={`flex ${
+            isVertical
+              ? "flex-col items-center gap-2"
+              : "ml-2 min-w-0 flex-1 flex-row items-center justify-end gap-1"
+          }`}
         >
           <TitleBarSearch
             ref={searchRef}
@@ -692,60 +816,54 @@ const TitleBar = forwardRef(
           />
 
           <div
-            className={`flex flex-shrink-0 ${isVertical ? "flex-col items-center" : "items-center"} gap-1`}
+            className={`flex flex-shrink-0 ${
+              isVertical ? "flex-col items-center" : "items-center"
+            } gap-0.5`}
           >
-            <Tooltip
-              content={
-                isMultiSelectMode
-                  ? t("multiSelect.exitMode")
-                  : t("multiSelect.enterMode")
-              }
-              placement={tooltipPlacement}
-              asChild
-            >
-              <button
-                className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-200 ${!currentStore ? "text-qc-fg-subtle opacity-60 cursor-not-allowed" : isMultiSelectMode ? ACTIVE_ICON_BUTTON_CLASS : "hover:bg-qc-hover text-qc-fg-muted"}`}
-                aria-label={
-                  isMultiSelectMode
-                    ? t("multiSelect.exitMode")
-                    : t("multiSelect.enterMode")
-                }
-                type="button"
-                onClick={handleToggleMultiSelect}
-                disabled={!currentStore}
-              >
-                <i
-                  className={
-                    isMultiSelectMode ? "ti ti-list" : "ti ti-list-check"
-                  }
-                  style={{
-                    fontSize: 16,
-                  }}
-                  data-stroke="1.5"
-                ></i>
-              </button>
-            </Tooltip>
+            {/* 收藏按钮 */}
+            <FilterIconButton
+              icon="ti ti-star"
+              label={activeTab === "favorites" ? t("clipboard.title") || "剪贴板" : t("favorites.title") || "收藏"}
+              isActive={activeTab === "favorites"}
+              onClick={handleFavoriteToggle}
+            />
 
-            <Tooltip
-              content={t("tools.pin")}
-              placement={tooltipPlacement}
-              asChild
-            >
+            {/* 图片筛选 */}
+            <FilterIconButton
+              icon="ti ti-photo"
+              label={t("filter.image") || "图片"}
+              isActive={contentFilter === "image"}
+              onClick={handleFilterClick("image")}
+            />
+
+            {/* 文件筛选 */}
+            <FilterIconButton
+              icon="ti ti-folder"
+              label={t("filter.file") || "文件"}
+              isActive={contentFilter === "file"}
+              onClick={handleFilterClick("file")}
+            />
+
+            {/* 置顶按钮 */}
+            <Tooltip content={t("tools.pin")} placement={tooltipPlacement} asChild>
               <button
-                className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-200 ${isPinned ? ACTIVE_ICON_BUTTON_CLASS : "hover:bg-qc-hover text-qc-fg-muted"}`}
+                className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-200 ${
+                  isPinned
+                    ? ACTIVE_ICON_BUTTON_CLASS
+                    : "hover:bg-qc-hover text-qc-fg-muted"
+                }`}
                 onClick={handleTogglePin}
                 aria-label={t("tools.pin")}
               >
                 <i
                   className="ti ti-pin"
-                  style={{
-                    fontSize: 16,
-                  }}
+                  style={{ fontSize: 16 }}
                   data-stroke="1.5"
                 ></i>
               </button>
             </Tooltip>
 
+            {/* 更多菜单 */}
             <Tooltip
               content={t("tools.more")}
               placement={tooltipPlacement}
@@ -759,9 +877,7 @@ const TitleBar = forwardRef(
               >
                 <i
                   className="ti ti-dots"
-                  style={{
-                    fontSize: 16,
-                  }}
+                  style={{ fontSize: 16 }}
                   data-stroke="1.5"
                 ></i>
               </button>
