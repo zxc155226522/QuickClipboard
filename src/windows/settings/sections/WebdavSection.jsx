@@ -139,13 +139,15 @@ function WebdavSection({ settings, onSettingChange }) {
   const webdavError = (error) => formatUserMessage(error, t, 'errors.webdav.operationFailed');
 
   const saveWebdavPasswordDraft = async () => {
-    if (!passwordDraft) return true;
+    // 允许空密码：空密码表示不使用密码认证
     try {
       setPasswordBusy(true);
       const saved = await setWebdavPassword(webdavUrl, webdavUsername, passwordDraft);
       setPasswordSaved(Boolean(saved));
       setPasswordDraft('');
-      toast.success(t('settings.webdav.passwordSaved'));
+      if (passwordDraft) {
+        toast.success(t('settings.webdav.passwordSaved'));
+      }
       return true;
     } catch (e) {
       toast.error(webdavError(e), { duration: 6000 });
@@ -170,7 +172,7 @@ function WebdavSection({ settings, onSettingChange }) {
   };
 
   const saveWebdavEncryptionPasswordDraft = async () => {
-    if (!encryptionPasswordDraft) return true;
+    // 允许空加密密码
     try {
       setEncryptionPasswordBusy(true);
       const saved = await setWebdavEncryptionPassword(

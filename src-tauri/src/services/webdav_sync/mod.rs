@@ -115,14 +115,13 @@ async fn build_client() -> Result<WebdavClient, String> {
             &webdav_url,
             &webdav_username,
         )?
-        .ok_or_else(|| "请先在设置中保存 WebDAV 密码".to_string())?
+        .unwrap_or_default() // 允许空密码，未保存则默认空字符串
     };
     let encryption_password = crate::services::secure_credentials::get_webdav_encryption_password(
         &webdav_url,
         &webdav_username,
         &webdav_root_path,
-    )?
-    .ok_or_else(|| "请先设置 WebDAV 云端加密密码".to_string())?;
+    )?;
     let config = WebdavConfig {
         url: webdav_url,
         username: webdav_username,
@@ -130,6 +129,8 @@ async fn build_client() -> Result<WebdavClient, String> {
         root_path: webdav_root_path,
     };
     let mut client = WebdavClient::new(config)?;
-    client.enable_encryption(&encryption_password).await?;
+    if let Some(ref ep) = encryption_password {
+        client.enable_encryption(ep).await?;
+    }
     Ok(client)
 }
