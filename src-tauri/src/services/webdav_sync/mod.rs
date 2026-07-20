@@ -37,26 +37,44 @@ pub async fn download_settings() -> Result<(), String> {
     let remote_settings: serde_json::Value = client.get_json("settings.json")
         .await?
         .ok_or_else(|| "云端暂无配置文件".to_string())?;
-    // 用远程配置覆盖本地配置（排除 webdav 相关字段以保持当前连接配置）
-    let mut local_settings = crate::services::get_settings();
+    let local_settings = crate::services::get_settings();
     let remote_obj = remote_settings.as_object()
         .ok_or_else(|| "云端配置格式无效".to_string())?;
     let local_json = serde_json::to_value(&local_settings)
         .map_err(|e| format!("序列化本地配置失败: {}", e))?;
     let local_obj = local_json.as_object()
         .ok_or_else(|| "本地配置格式无效".to_string())?;
-    // 保留的 webdav 相关字段（不覆盖）
-    let preserve_keys = [
+    // WebDAV 相关字段：如果本地为空则从云端导入，否则保留本地值
+    let webdav_keys = [
         "webdavEnabled", "webdavUrl", "webdavUsername", "webdavRootPath",
         "webdavSyncClipboard", "webdavSyncFavorites", "webdavSyncImages",
         "webdavAutoPullOnWindowShow", "webdavAutoPush", "webdavPushDelaySecs",
         "webdavAutoPull", "webdavPullIntervalSecs",
     ];
-    let preserve_set: std::collections::HashSet<&str> = preserve_keys.iter().copied().collect();
+    let empty_values: std::collections::HashSet<&str> = [
+        "webdavUrl", "webdavUsername", "webdavRootPath",
+    ].iter().copied().collect();
+    let webdav_set: std::collections::HashSet<&str> = webdav_keys.iter().copied().collect();
     let mut merged = remote_obj.clone();
     for key in local_obj.keys() {
-        if preserve_set.contains(key.as_str()) {
-            merged.insert(key.clone(), local_obj[key].clone());
+        if !webdav_set.contains(key.as_str()) {
+            continue;
+        }
+        let local_val = &local_obj[key];
+        let is_local_empty = match local_val {
+            serde_json::Value::String(s) => s.trim().is_empty(),
+            serde_json::Value::Bool(b) => !b,
+            serde_json::Value::Null => true,
+            _ => false,
+        };
+        // 关键连接字段（URL/用户名/根路径）：本地为空时从云端导入
+        if empty_values.contains(key.as_str()) && is_local_empty {
+            // 保留云端值（已在 merged 中）
+            continue;
+        }
+        // 其他 WebDAV 字段：本地有值时保留本地
+        if !is_local_empty {
+            merged.insert(key.clone(), local_val.clone());
         }
     }
     let merged_settings: AppSettings = serde_json::from_value(serde_json::Value::Object(merged))
