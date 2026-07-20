@@ -3,7 +3,6 @@ import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 're
 import { useInputFocus, focusWindowImmediately } from '@shared/hooks/useInputFocus';
 import { useSnapshot } from 'valtio';
 import { settingsStore } from '@shared/store/settingsStore';
-import Tooltip from '@shared/components/common/Tooltip.jsx';
 const TitleBarSearch = forwardRef(({
   value,
   onChange,
@@ -11,14 +10,10 @@ const TitleBarSearch = forwardRef(({
   isVertical = false,
   position = 'top'
 }, ref) => {
-  const [isFocused, setIsFocused] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
   const [inputValue, setInputValue] = useState(value || '');
   const inputRef = useInputFocus();
-  const searchRef = useRef(null);
   const isComposingRef = useRef(false);
   const settings = useSnapshot(settingsStore);
-  const uiAnimationEnabled = settings.uiAnimationEnabled !== false;
 
   // 搜索框清空按钮样式
   const searchInputStyle = `
@@ -38,25 +33,13 @@ const TitleBarSearch = forwardRef(({
         }
     `;
 
-  // 决定是否显示为扩展状态
   useEffect(() => {
     if (!isComposingRef.current) {
       setInputValue(value || '');
     }
   }, [value]);
 
-  const shouldExpand = isFocused || inputValue.length > 0;
-  useEffect(() => {
-    setIsExpanded(shouldExpand);
-  }, [shouldExpand]);
-  const handleIconClick = () => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  };
   const handleFocus = () => {
-    setIsFocused(true);
     if (inputRef.current && inputValue) {
       setTimeout(() => {
         inputRef.current.select();
@@ -83,7 +66,6 @@ const TitleBarSearch = forwardRef(({
     onChange(nextValue);
   };
 
-  // 暴露方法给父组件
   useImperativeHandle(ref, () => ({
     focus: async () => {
       if (inputRef.current) {
@@ -117,25 +99,25 @@ const TitleBarSearch = forwardRef(({
     },
     isFocused: () => document.activeElement === inputRef.current
   }));
-  return <>
-            <style>{searchInputStyle}</style>
-            <div ref={searchRef} className={`titlebar-search relative flex ${isVertical ? 'flex-col items-center justify-end h-7' : 'min-w-0 flex-1 flex-row items-center justify-end'}`}>
-                {/* 输入框 - 根据方向展开 */}
-                <input ref={inputRef} type="search" value={inputValue} onChange={handleChange} onCompositionStart={handleCompositionStart} onCompositionEnd={handleCompositionEnd} onFocus={handleFocus} onBlur={() => setIsFocused(false)} placeholder={placeholder} style={isVertical ? {
+
+  if (isVertical) {
+    return <>
+        <style>{searchInputStyle}</style>
+        <div className="titlebar-search relative flex flex-col items-center justify-end h-7">
+            <input ref={inputRef} type="search" value={inputValue} onChange={handleChange} onCompositionStart={handleCompositionStart} onCompositionEnd={handleCompositionEnd} onFocus={handleFocus} placeholder={placeholder} style={{
         writingMode: 'vertical-rl',
         textAlign: 'start'
-      } : {}} className={`${isVertical ? 'absolute bottom-6 left-0 w-7 py-2' : 'h-7 min-w-0'} text-sm bg-qc-panel border border-qc-border rounded-lg outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-qc-fg placeholder:text-qc-fg-subtle shadow-sm ${uiAnimationEnabled ? 'transition-all duration-300 ease-in-out' : ''} ${isExpanded ? isVertical ? 'h-48 opacity-100 mb-1' : 'flex-1 opacity-100 mr-1 px-2' : isVertical ? 'h-0 opacity-0 pointer-events-none border-0' : 'w-0 flex-none opacity-0 pointer-events-none border-0 px-0'}`} />
+      }} className="absolute bottom-6 left-0 w-7 py-2 text-sm bg-qc-panel border border-qc-border rounded-lg outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-qc-fg placeholder:text-qc-fg-subtle shadow-sm" />
+        </div>
+    </>;
+  }
 
-                {/* 搜索图标 - 始终保持在原位 */}
-                <Tooltip content="搜索" placement={isVertical ? (position === 'left' ? 'right' : 'left') : 'bottom'} asChild>
-                  <button onClick={handleIconClick} className={`relative z-10 flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-qc-hover text-qc-fg-muted hover:text-blue-500 ${uiAnimationEnabled ? 'transition-all duration-200' : ''}`}>
-                      <i className="ti ti-search" style={{
-            fontSize: 16
-          }}></i>
-                  </button>
-                </Tooltip>
-            </div>
-        </>;
+  return <>
+        <style>{searchInputStyle}</style>
+        <div className="titlebar-search min-w-0 flex-1 flex-row items-center">
+            <input ref={inputRef} type="search" value={inputValue} onChange={handleChange} onCompositionStart={handleCompositionStart} onCompositionEnd={handleCompositionEnd} onFocus={handleFocus} placeholder={placeholder} className="h-7 w-full min-w-0 px-2 text-sm bg-qc-panel border border-qc-border rounded-lg outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-qc-fg placeholder:text-qc-fg-subtle shadow-sm" />
+        </div>
+    </>;
 });
 TitleBarSearch.displayName = 'TitleBarSearch';
 export default TitleBarSearch;

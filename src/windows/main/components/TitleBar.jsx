@@ -316,15 +316,6 @@ const TitleBar = forwardRef(
       }
     };
 
-    // 筛选按钮处理
-    const handleFilterClick = (filterId) => (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (onFilterChange) {
-        onFilterChange(contentFilter === filterId ? "all" : filterId);
-      }
-    };
-
     const handleMoreMenu = async (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -728,64 +719,8 @@ const TitleBar = forwardRef(
       },
     }));
 
-    // 筛选按钮右键菜单
-    const handleFilterContextMenu = async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const checkIcon = (enabled) => (enabled ? "ti ti-check" : undefined);
-      const filterMenuItems = [
-        createMenuItem({
-          id: "ctx-filter-all",
-          label: t("filter.all") || "全部",
-          icon: checkIcon(contentFilter === "all"),
-        }),
-        createMenuItem({
-          id: "ctx-filter-text",
-          label: t("filter.text") || "文本",
-          icon: checkIcon(contentFilter === "text"),
-        }),
-        createMenuItem({
-          id: "ctx-filter-image",
-          label: t("filter.image") || "图片",
-          icon: checkIcon(contentFilter === "image"),
-        }),
-        createMenuItem({
-          id: "ctx-filter-file",
-          label: t("filter.file") || "文件",
-          icon: checkIcon(contentFilter === "file"),
-        }),
-        createMenuItem({
-          id: "ctx-filter-link",
-          label: t("filter.link") || "链接",
-          icon: checkIcon(contentFilter === "link"),
-        }),
-      ];
-      const result = await showContextMenu({
-        items: filterMenuItems,
-        placement: createMenuPlacementFromEvent(event),
-        appearance: {
-          theme: settingsStore.theme,
-          lightThemeStyle: settingsStore.lightThemeStyle,
-          darkThemeStyle: settingsStore.darkThemeStyle,
-          uiAnimationEnabled: settingsStore.uiAnimationEnabled,
-        },
-      });
-      if (!result) return;
-      const filterMap = {
-        "ctx-filter-all": "all",
-        "ctx-filter-text": "text",
-        "ctx-filter-image": "image",
-        "ctx-filter-file": "file",
-        "ctx-filter-link": "link",
-      };
-      const target = filterMap[result];
-      if (target && onFilterChange) {
-        onFilterChange(target);
-      }
-    };
-
-    // 筛选按钮的图标按钮组件
-    const FilterIconButton = ({ icon, label, isActive, onClick, onContextMenu }) => (
+    // 筛选按钮组件
+    const FilterIconButton = ({ icon, label, isActive, onClick }) => (
       <Tooltip content={label} placement={tooltipPlacement} asChild>
         <button
           className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-200 ${
@@ -794,7 +729,6 @@ const TitleBar = forwardRef(
               : "hover:bg-qc-hover text-qc-fg-muted"
           }`}
           onClick={onClick}
-          onContextMenu={onContextMenu}
           aria-label={label}
           type="button"
         >
@@ -877,6 +811,14 @@ const TitleBar = forwardRef(
               isVertical ? "flex-col items-center" : "items-center"
             } gap-0.5`}
           >
+            {/* 全部按钮 */}
+            <FilterIconButton
+              icon="ti ti-category"
+              label={t("filter.all") || "全部"}
+              isActive={contentFilter === "all"}
+              onClick={() => onFilterChange && onFilterChange("all")}
+            />
+
             {/* 收藏按钮 */}
             <FilterIconButton
               icon="ti ti-star"
@@ -885,22 +827,20 @@ const TitleBar = forwardRef(
               onClick={handleFavoriteToggle}
             />
 
-            {/* 图片筛选 - 左键切换，右键选择筛选 */}
+            {/* 图片筛选 */}
             <FilterIconButton
               icon="ti ti-photo"
-              label={contentFilter === "image" ? (t("filter.all") || "全部") : (t("filter.image") || "图片")}
+              label={t("filter.image") || "图片"}
               isActive={contentFilter === "image"}
-              onClick={handleFilterClick("image")}
-              onContextMenu={handleFilterContextMenu}
+              onClick={() => onFilterChange && onFilterChange("image")}
             />
 
-            {/* 文件筛选 - 左键切换，右键选择筛选 */}
+            {/* 文件筛选 */}
             <FilterIconButton
               icon="ti ti-folder"
-              label={contentFilter === "file" ? (t("filter.all") || "全部") : (t("filter.file") || "文件")}
+              label={t("filter.file") || "文件"}
               isActive={contentFilter === "file"}
-              onClick={handleFilterClick("file")}
-              onContextMenu={handleFilterContextMenu}
+              onClick={() => onFilterChange && onFilterChange("file")}
             />
 
             {/* 置顶按钮 */}
