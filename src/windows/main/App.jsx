@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSnapshot } from 'valtio';
 import { listen } from '@tauri-apps/api/event';
@@ -25,7 +25,7 @@ import TitleBar from './components/TitleBar';
 import TabNavigation from './components/TabNavigation';
 import ClipboardTab from './components/ClipboardTab';
 import FavoritesTab from './components/FavoritesTab';
-const EmojiTab = lazy(() => import('./components/EmojiTab'));
+// EmojiTab 已移除（表情包功能已禁用）
 import MultiSelectActionBar from './components/MultiSelectActionBar';
 import WindowResizeHandles from './components/WindowResizeHandles';
 import ToastContainer from '@shared/components/common/ToastContainer';
@@ -64,7 +64,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('clipboard');
   const [contentFilter, setContentFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [emojiMode, setEmojiMode] = useState('emoji'); // 'emoji' | 'symbols' | 'images'
+  // emojiMode 已移除（表情包功能已禁用）
   const [isSidebarTabsLayout, setIsSidebarTabsLayout] = useState(getIsSidebarTabsLayout);
   const clipboardTabRef = useRef(null);
   const favoritesTabRef = useRef(null);
@@ -465,11 +465,11 @@ function App() {
     bg-qc-surface
   `.trim().replace(/\s+/g, ' ');
   const TitleBarComponent = <TitleBar ref={searchRef} searchQuery={searchQuery} onSearchChange={setSearchQuery} searchPlaceholder={t('search.placeholder')} position={settings.titleBarPosition} activeTab={activeTab} contentFilter={contentFilter} onFilterChange={setContentFilter} onTabChange={setActiveTab} />;
-  const TabNavigationComponent = <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} contentFilter={contentFilter} onFilterChange={setContentFilter} emojiMode={emojiMode} onEmojiModeChange={setEmojiMode} onGroupChange={handleGroupChange} groupsPopupRef={groupsPopupRef} navigationMode={tabNavigationMode} />;
+  const TabNavigationComponent = <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} contentFilter={contentFilter} onFilterChange={setContentFilter} onGroupChange={handleGroupChange} groupsPopupRef={groupsPopupRef} navigationMode={tabNavigationMode} />;
   const ContentComponent = <div ref={contentDragRef} className="main-content-area flex-1 min-h-0 overflow-hidden relative pb-[8px] bg-qc-surface transition-colors duration-500">
       {activeTab === 'clipboard' && <ClipboardTab ref={clipboardTabRef} contentFilter={contentFilter} searchQuery={searchQuery} />}
       {activeTab === 'favorites' && <FavoritesTab ref={favoritesTabRef} contentFilter={contentFilter} searchQuery={searchQuery} />}
-      {activeTab === 'emoji' && <Suspense fallback={null}><EmojiTab emojiMode={emojiMode} onEmojiModeChange={setEmojiMode} /></Suspense>}
+      {/* EmojiTab 已移除 */}
     </div>;
   const ActionBarComponent = <MultiSelectActionBar activeTab={activeTab} />;
   const renderWorkspace = () => {

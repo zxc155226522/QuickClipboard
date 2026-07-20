@@ -68,8 +68,6 @@ function TabNavigation({
   onTabChange,
   contentFilter,
   onFilterChange,
-  emojiMode,
-  onEmojiModeChange,
   onGroupChange,
   groupsPopupRef,
   navigationMode = 'horizontal'
@@ -85,7 +83,6 @@ function TabNavigation({
   const [isGroupsPanelOpen, setIsGroupsPanelOpen] = useState(false);
   const tabsRef = useRef({});
   const filtersRef = useRef({});
-  const emojiModesRef = useRef({});
   const tabsContainerRef = useRef(null);
   const controlsContainerRef = useRef(null);
   const tabIndicatorRef = useRef(null);
@@ -93,7 +90,6 @@ function TabNavigation({
   const rightAreaRef = useRef(null);
   const [tabAnimationKey, setTabAnimationKey] = useState(0);
   const [filterAnimationKey, setFilterAnimationKey] = useState(0);
-  const [emojiModeAnimationKey, setEmojiModeAnimationKey] = useState(0);
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const [collapsedVisibleFilterCount, setCollapsedVisibleFilterCount] = useState(3);
   const [sidebarFixedWidth, setSidebarFixedWidth] = useState(null);
@@ -108,11 +104,8 @@ function TabNavigation({
     id: 'favorites',
     label: t('favorites.title') || '收藏',
     icon: 'ti ti-star'
-  }, {
-    id: 'emoji',
-    label: t('emoji.title') || '符号',
-    icon: 'ti ti-mood-smile'
   }];
+  // emoji tab 已移除
   const tabs = allTabs.filter(tab => tab.id === 'clipboard' || visibleOptionalTabs.includes(tab.id));
   const horizontalTabAreaMinPercent = 28;
   const horizontalTabAreaMaxPercent = 50;
@@ -121,20 +114,7 @@ function TabNavigation({
     : horizontalTabAreaMinPercent + (tabs.length - 1) * ((horizontalTabAreaMaxPercent - horizontalTabAreaMinPercent) / (allTabs.length - 1));
   const horizontalRightAreaPercent = 100 - horizontalTabAreaPercent;
 
-  const emojiModes = [{
-    id: 'emoji',
-    label: t('emoji.emoji') || 'Emoji',
-    icon: 'ti ti-mood-smile',
-    emoji: '😀'
-  }, {
-    id: 'symbols',
-    label: t('emoji.symbols') || '符号',
-    icon: 'ti ti-math-symbols'
-  }, {
-    id: 'images',
-    label: t('emoji.images') || '图片',
-    icon: 'ti ti-photo-star'
-  }];
+  // emojiModes 已移除
 
   const filters = [{
     id: 'all',
@@ -190,11 +170,7 @@ function TabNavigation({
     applyIndicatorPosition(controlsIndicatorRef.current, nextIndicator);
   }, [contentFilter, shouldExpandFilters, collapsedVisibleFilterCount]);
 
-  const updateEmojiModeIndicator = useCallback(() => {
-    const activeElement = emojiModesRef.current[emojiMode];
-    const nextIndicator = measureIndicator(activeElement, controlsContainerRef.current);
-    applyIndicatorPosition(controlsIndicatorRef.current, nextIndicator);
-  }, [emojiMode]);
+  // updateEmojiModeIndicator 已移除
 
   useEffect(() => {
     return () => {
@@ -225,9 +201,6 @@ function TabNavigation({
   }, [isSidebarLayout]);
 
   useEffect(() => {
-    if (activeTab === 'emoji') {
-      return undefined;
-    }
     const timer = setTimeout(() => {
       setFilterAnimationKey(prev => prev + 1);
     }, 300);
@@ -236,14 +209,7 @@ function TabNavigation({
     };
   }, [contentFilter, activeTab]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setEmojiModeAnimationKey(prev => prev + 1);
-    }, 300);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [emojiMode]);
+  // emojiModeAnimationKey effect 已移除
 
   useEffect(() => {
     setIsFilterExpanded(false);
@@ -255,10 +221,7 @@ function TabNavigation({
       return undefined;
     }
 
-    if (activeTab === 'emoji') {
-      setCollapsedVisibleFilterCount(3);
-      return undefined;
-    }
+    // emoji tab collapsedVisibleFilterCount 逻辑已移除
 
     const target = rightAreaRef.current;
     if (!target) {
@@ -340,7 +303,7 @@ function TabNavigation({
 
       updateTabIndicator();
       updateFilterIndicator();
-      updateEmojiModeIndicator();
+      // updateEmojiModeIndicator 已移除
     };
 
     const scheduleUpdate = () => {
@@ -378,7 +341,7 @@ function TabNavigation({
       const controlsContainer = controlsContainerRef.current;
       Object.values(tabsRef.current).forEach(element => addElementAndParents(element, tabContainer));
       Object.values(filtersRef.current).forEach(element => addElementAndParents(element, controlsContainer));
-      Object.values(emojiModesRef.current).forEach(element => addElementAndParents(element, controlsContainer));
+      // emojiModesRef 已移除
       if (tabContainer) observedElements.add(tabContainer);
       if (controlsContainer) observedElements.add(controlsContainer);
 
@@ -400,13 +363,11 @@ function TabNavigation({
   }, [
     updateTabIndicator,
     updateFilterIndicator,
-    updateEmojiModeIndicator,
+    // updateEmojiModeIndicator 已移除
     isSidebarLayout
   ]);
 
-  const handleEmojiModeChange = (id) => {
-    onEmojiModeChange(id);
-  };
+  // handleEmojiModeChange 已移除
 
   const handleFilterAreaMouseEnter = () => {
     if (isFilterAutoExpanded) {
@@ -440,7 +401,6 @@ function TabNavigation({
     id,
     label,
     icon,
-    emoji,
     isActive,
     onClick,
     buttonRef,
@@ -469,7 +429,7 @@ function TabNavigation({
               transitionDuration: '200ms, 200ms, 500ms, 500ms'
             } : {}}
           >
-            {emoji ? <span style={{ fontSize: 16 }}>{emoji}</span> : <i className={icon} style={{ fontSize: 16 }} />}
+            <i className={icon} style={{ fontSize: 16 }} />
             {showLabel && (
               <span className="text-[12px] font-medium leading-none truncate flex-1 min-w-0 text-left">
                 {label}
@@ -513,20 +473,8 @@ function TabNavigation({
 
           <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2 w-full min-w-0">
             <div className="grid grid-cols-1 gap-1 w-full min-w-0 justify-items-stretch">
-              {activeTab === 'emoji'
-                ? emojiModes.map(mode => renderSidebarButton({
-                    id: mode.id,
-                    label: mode.label,
-                    icon: mode.icon,
-                    emoji: mode.emoji,
-                    isActive: emojiMode === mode.id,
-                    onClick: handleEmojiModeChange,
-                    showLabel: sidebarShowLabel,
-                    buttonRef: el => {
-                      emojiModesRef.current[mode.id] = el;
-                    }
-                  }))
-                : filters.map(filter => renderSidebarButton({
+            {/* emoji sidebar 已移除 - 只显示 filters */}
+              {filters.map(filter => renderSidebarButton({
                     id: filter.id,
                     label: filter.label,
                     icon: filter.icon,
@@ -672,11 +620,11 @@ function TabNavigation({
         <div
           ref={controlsContainerRef}
           className={`flex min-w-0 max-w-full items-center gap-1 relative overflow-visible ${
-            activeTab === 'emoji' || isFilterAutoExpanded
+            isFilterAutoExpanded
               ? 'w-full justify-center'
               : 'w-full'
           }`}
-          onMouseLeave={activeTab === 'emoji' ? undefined : handleFilterAreaMouseLeave}
+          onMouseLeave={handleFilterAreaMouseLeave}
         >
           {!isSidebarLayout && (
             <div ref={controlsIndicatorRef} className={`absolute left-0 w-0 rounded-lg pointer-events-none ${uiAnimationEnabled ? 'transition-all duration-300 ease-out' : ''}`} style={{
@@ -684,31 +632,11 @@ function TabNavigation({
               top: '50%',
               transform: 'translateY(-50%)'
             }}>
-              <div key={activeTab === 'emoji' ? `emoji-mode-bounce-${emojiModeAnimationKey}` : `filter-bounce-${filterAnimationKey}`} className={`w-full h-full rounded-lg bg-[var(--qc-accent)] ${uiAnimationEnabled ? 'animate-button-bounce' : ''}`} />
+              <div key={`filter-bounce-${filterAnimationKey}`} className={`w-full h-full rounded-lg bg-[var(--qc-accent)] ${uiAnimationEnabled ? 'animate-button-bounce' : ''}`} />
             </div>
           )}
-          {activeTab === 'emoji'
-            ? emojiModes.map(mode => (
-                <div key={mode.id} ref={el => emojiModesRef.current[mode.id] = el} className="relative flex-1 h-7">
-                  <Tooltip content={mode.label} placement={isSidebarLayout ? 'right' : 'bottom'} asChild>
-                    <button
-                      onClick={() => handleEmojiModeChange(mode.id)}
-                      className={`relative z-10 flex items-center justify-center w-full h-full rounded-lg focus:outline-none ${uiAnimationEnabled ? 'hover:scale-105' : ''} ${
-                        emojiMode === mode.id
-                          ? 'qc-active-icon-button bg-[var(--qc-accent)] text-[var(--qc-accent-fg)] shadow-md hover:bg-[var(--qc-accent)]'
-                          : 'text-qc-fg-muted hover:bg-qc-hover'
-                      }`}
-                      style={uiAnimationEnabled ? {
-                        transitionProperty: 'transform, box-shadow, background-color, color',
-                        transitionDuration: '200ms, 200ms, 500ms, 500ms'
-                      } : {}}
-                    >
-                      {mode.emoji ? <span style={{ fontSize: 16 }}>{mode.emoji}</span> : <i className={mode.icon} style={{ fontSize: 16 }} />}
-                    </button>
-                  </Tooltip>
-                </div>
-              ))
-            : (
+          {/* emoji mode buttons 已移除 - 只显示 filters */}
+          (
                 <>
                   {isFilterAutoExpanded ? (
                     <div className="flex items-center gap-1 flex-1 min-w-0" onMouseEnter={handleFilterAreaMouseEnter}>

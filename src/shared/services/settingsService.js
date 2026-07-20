@@ -35,7 +35,7 @@ export const defaultSettings = {
   customFontPath: '',
   customFontUrl: '',
   customFontFamily: '',
-  visibleOptionalTabs: ['favorites', 'emoji'],
+  visibleOptionalTabs: ['favorites'],
   opacity: 0.9,
   backgroundImagePath: '',
   superBackgroundBlurScale: 1,

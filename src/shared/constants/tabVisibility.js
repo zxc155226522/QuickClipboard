@@ -1,6 +1,6 @@
+// emoji 选项已移除
 export const OPTIONAL_TAB_OPTIONS = [
-  { id: 'favorites', labelKey: 'favorites.title', fallbackLabel: '收藏' },
-  { id: 'emoji', labelKey: 'emoji.title', fallbackLabel: '符号' }
+  { id: 'favorites', labelKey: 'favorites.title', fallbackLabel: '收藏' }
 ]
 
 export const MAIN_TAB_ORDER = ['clipboard', ...OPTIONAL_TAB_OPTIONS.map(option => option.id)]

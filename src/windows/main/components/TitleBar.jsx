@@ -508,11 +508,7 @@ const TitleBar = forwardRef(
       ];
       const menuItems = [
         filterItem,
-        createMenuItem({
-          id: "menu-emoji-tab",
-          label: t("emoji.title") || "符号",
-          icon: "ti ti-mood-smile",
-        }),
+        // 表情包菜单已移除
         createSeparator(),
         fileHubItem,
         webdavItem,
@@ -575,11 +571,7 @@ const TitleBar = forwardRef(
         return;
       }
       switch (result) {
-        case "menu-emoji-tab":
-          if (onTabChange) {
-            onTabChange("emoji");
-          }
-          break;
+        // menu-emoji-tab 已移除
         case "menu-screenshot-normal":
           await startScreenshotFromMenu("normal");
           break;
