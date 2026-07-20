@@ -661,25 +661,6 @@ function FavoriteItem({
           </Tooltip>
         </>
       )}
-      {settings.showBadges !== false && hasFileMissing && (
-        <Tooltip content={t('clipboard.fileNotFound', '文件不存在')} placement="right" asChild>
-          <div
-            className={`absolute top-0 left-0 z-30 overflow-hidden ${isCardStyle ? 'rounded-tl-md' : ''}`}
-            style={{ width: 20, height: 20 }}
-          >
-            <div style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: 0,
-              height: 0,
-              borderStyle: 'solid',
-              borderWidth: '20px 20px 0 0',
-              borderColor: 'rgba(239,68,68,1) transparent transparent transparent',
-            }} />
-          </div>
-        </Tooltip>
-      )}
       {/* 顶部操作区域：操作按钮、分组、序号 */}
       <div className={floatingControlsClasses}>
         {/* 悬停操作按钮组 */}

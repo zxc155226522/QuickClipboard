@@ -720,24 +720,11 @@ function ClipboardItem({
           </Tooltip>
         </>
       )}
-      {settings.showBadges !== false && (hasFileMissing || item.is_pinned) && (
-        <Tooltip content={hasFileMissing ? t('clipboard.fileNotFound', '文件不存在') : t('contextMenu.pinned')} placement="right" asChild>
-          <div
-            className={`absolute top-0 left-0 z-30 overflow-hidden ${isCardStyle ? 'rounded-tl-md' : ''}`}
-            style={{ width: 20, height: 20 }}
-          >
-            <div style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: 0,
-              height: 0,
-              borderStyle: 'solid',
-              borderWidth: '20px 20px 0 0',
-              borderColor: (hasFileMissing ? 'rgba(239,68,68,1)' : 'rgba(59,130,246,1)') + ' transparent transparent transparent',
-            }} />
-          </div>
-        </Tooltip>
+      {/* 置顶指示器：左侧细竖线 */}
+      {item.is_pinned && (
+        <div
+          className={`absolute top-1.5 bottom-1.5 left-0 w-0.5 rounded-full bg-blue-500 z-30`}
+        />
       )}
       {/* 顶部操作区域：操作按钮、快捷键、序号 */}
       <div className={floatingControlsClasses}>
