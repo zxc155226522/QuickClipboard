@@ -716,26 +716,28 @@ function App() {
             return { x, y };
           });
 
-          // 计算全局鼠标指针相对于当前预览卡片盒的位置
-          const cursorRelX = x / scaleFactor - workAreaLogical.left;
-          const cursorRelY = y / scaleFactor - workAreaLogical.top;
+          const bounds = boxBoundsRef.current;
+          if (bounds) {
+            const cursorRelX = x / bounds.scaleFactor - bounds.workAreaLeft;
+            const cursorRelY = y / bounds.scaleFactor - bounds.workAreaTop;
 
-          const isInsideBox =
-            cursorRelX >= relativeLeft &&
-            cursorRelX <= relativeLeft + displaySize.width &&
-            cursorRelY >= relativeTop &&
-            cursorRelY <= relativeTop + displaySize.height;
+            const isInsideBox =
+              cursorRelX >= bounds.relativeLeft &&
+              cursorRelX <= bounds.relativeLeft + bounds.width &&
+              cursorRelY >= bounds.relativeTop &&
+              cursorRelY <= bounds.relativeTop + bounds.height;
 
-          if (isInsideBox) {
-            if (isIgnoringCursorRef.current) {
-              isIgnoringCursorRef.current = false;
-              invoke('set_preview_window_ignore_cursor', { ignore: false }).catch(() => { });
-              emit('preview-window-mouse-entered', { requestId: currentRequestId }).catch(() => { });
-            }
-          } else {
-            if (!isIgnoringCursorRef.current) {
-              isIgnoringCursorRef.current = true;
-              invoke('set_preview_window_ignore_cursor', { ignore: true }).catch(() => { });
+            if (isInsideBox) {
+              if (isIgnoringCursorRef.current) {
+                isIgnoringCursorRef.current = false;
+                invoke('set_preview_window_ignore_cursor', { ignore: false }).catch(() => { });
+                emit('preview-window-mouse-entered', { requestId: bounds.currentRequestId }).catch(() => { });
+              }
+            } else {
+              if (!isIgnoringCursorRef.current) {
+                isIgnoringCursorRef.current = true;
+                invoke('set_preview_window_ignore_cursor', { ignore: true }).catch(() => { });
+              }
             }
           }
         })
@@ -755,17 +757,7 @@ function App() {
         invoke('set_preview_window_ignore_cursor', { ignore: true }).catch(() => { });
       }
     };
-  }, [
-    previewData,
-    scaleFactor,
-    workAreaLogical.left,
-    workAreaLogical.top,
-    relativeLeft,
-    relativeTop,
-    displaySize.width,
-    displaySize.height,
-    currentRequestId,
-  ]);
+  }, [previewData]);
 
   useEffect(() => {
     setIsVisible(false);
@@ -1264,6 +1256,20 @@ function App() {
     0,
     Math.max(0, viewportLogical.height - displaySize.height),
   );
+
+  const boxBoundsRef = useRef(null);
+  useEffect(() => {
+    boxBoundsRef.current = {
+      scaleFactor,
+      workAreaLeft: workAreaLogical.left,
+      workAreaTop: workAreaLogical.top,
+      relativeLeft,
+      relativeTop,
+      width: displaySize.width,
+      height: displaySize.height,
+      currentRequestId,
+    };
+  }, [scaleFactor, workAreaLogical.left, workAreaLogical.top, relativeLeft, relativeTop, displaySize.width, displaySize.height, currentRequestId]);
   const previewHintTop = Math.max(0, relativeTop - 28);
   const previewHintMaxWidth = Math.max(240, viewportLogical.width - 24);
   const previewConnectorCandidate = useMemo(() => {
