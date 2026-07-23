@@ -732,7 +732,7 @@ function ClipboardItem({
         {!isMultiSelectMode && <div className={actionGroupClasses} onMouseEnter={closeHoverPreview} onMouseLeave={handleActionGroupMouseLeave}>
           <Tooltip content={item.favorite_id ? t('favorites.remove') : t('contextMenu.addToFavorites')} placement="bottom">
             <button
-              className={`${actionButtonClasses} ${item.favorite_id ? 'text-qc-favorite hover:text-qc-favorite bg-qc-active' : ''}`}
+              className={`${actionButtonClasses} ${item.favorite_id ? 'text-blue-500 hover:text-blue-600 bg-blue-500/10' : ''}`}
               onClick={handleFavoriteClick}
               aria-pressed={Boolean(item.favorite_id)}
             >
@@ -753,7 +753,7 @@ function ClipboardItem({
           </Tooltip>
           <Tooltip content={item.is_pinned ? t('contextMenu.unpin') : t('contextMenu.pin')} placement="bottom">
             <button
-              className={`${actionButtonClasses} ${item.is_pinned ? 'text-theme-9 bg-qc-active' : ''}`}
+              className={`${actionButtonClasses} ${item.is_pinned ? 'text-blue-500 hover:text-blue-600 bg-blue-500/10' : ''}`}
               onClick={handlePinClick}
             >
               <i className={item.is_pinned ? 'ti ti-pinned' : 'ti ti-pin'} style={{ fontSize: 12 }}></i>
