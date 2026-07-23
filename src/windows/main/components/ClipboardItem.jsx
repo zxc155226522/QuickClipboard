@@ -412,11 +412,11 @@ function ClipboardItem({
     e.stopPropagation();
     try {
       const isPinned = await togglePinClipboardItem(item.id);
+      clipboardStore.setItemPinned(item.id, isPinned);
       toast.success(isPinned ? t('contextMenu.pinned') : t('contextMenu.unpinned'), {
         size: TOAST_SIZES.EXTRA_SMALL,
         position: TOAST_POSITIONS.BOTTOM_RIGHT
       });
-      await refreshClipboardHistory();
     } catch (error) {
       console.error('置顶失败:', error);
     }
@@ -431,6 +431,7 @@ function ClipboardItem({
       if (favoriteId) {
         await deleteFavorite(favoriteId);
         favoritesStore.removeItem(favoriteId);
+        clipboardStore.setFavoriteId(item.id, null);
         toast.success(t('favorites.removed'), {
           size: TOAST_SIZES.EXTRA_SMALL,
           position: TOAST_POSITIONS.BOTTOM_RIGHT
@@ -438,7 +439,8 @@ function ClipboardItem({
         return;
       }
 
-      await addClipboardToFavorites(item.id);
+      const resFavoriteId = await addClipboardToFavorites(item.id);
+      clipboardStore.setFavoriteId(item.id, resFavoriteId);
       toast.success(t('contextMenu.addedToFavorites'), {
         size: TOAST_SIZES.EXTRA_SMALL,
         position: TOAST_POSITIONS.BOTTOM_RIGHT
@@ -732,11 +734,11 @@ function ClipboardItem({
         {!isMultiSelectMode && <div className={actionGroupClasses} onMouseEnter={closeHoverPreview} onMouseLeave={handleActionGroupMouseLeave}>
           <Tooltip content={item.favorite_id ? t('favorites.remove') : t('contextMenu.addToFavorites')} placement="bottom">
             <button
-              className={`${actionButtonClasses} ${item.favorite_id ? 'text-blue-500 hover:text-blue-600 bg-blue-500/10' : ''}`}
+              className={`${actionButtonClasses} ${item.favorite_id ? '!text-blue-500 !bg-blue-500/15' : ''}`}
               onClick={handleFavoriteClick}
               aria-pressed={Boolean(item.favorite_id)}
             >
-              <i className="ti ti-star" style={{ fontSize: 12 }}></i>
+              <i className="ti ti-star" style={{ fontSize: 12, color: item.favorite_id ? '#3b82f6' : undefined }}></i>
             </button>
           </Tooltip>
           {(renderType === 'text' || renderType === 'rich_text') && (
@@ -753,10 +755,10 @@ function ClipboardItem({
           </Tooltip>
           <Tooltip content={item.is_pinned ? t('contextMenu.unpin') : t('contextMenu.pin')} placement="bottom">
             <button
-              className={`${actionButtonClasses} ${item.is_pinned ? 'text-blue-500 hover:text-blue-600 bg-blue-500/10' : ''}`}
+              className={`${actionButtonClasses} ${item.is_pinned ? '!text-blue-500 !bg-blue-500/15' : ''}`}
               onClick={handlePinClick}
             >
-              <i className={item.is_pinned ? 'ti ti-pinned' : 'ti ti-pin'} style={{ fontSize: 12 }}></i>
+              <i className={item.is_pinned ? 'ti ti-pinned' : 'ti ti-pin'} style={{ fontSize: 12, color: item.is_pinned ? '#3b82f6' : undefined }}></i>
             </button>
           </Tooltip>
         </div>}

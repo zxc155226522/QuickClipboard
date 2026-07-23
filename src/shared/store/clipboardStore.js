@@ -109,6 +109,12 @@ export const clipboardStore = proxy({
     this.items[index] = { ...this.items[index], favorite_id: favoriteId || null }
   },
 
+  setItemPinned(id, isPinned) {
+    const index = this.findLoadedItemIndex(id)
+    if (!Number.isInteger(index) || !this.items[index]) return
+    this.items[index] = { ...this.items[index], is_pinned: Boolean(isPinned) }
+  },
+
   clearFavoriteIds(favoriteIds) {
     const favoriteIdSet = new Set(favoriteIds.filter(Boolean))
     if (!favoriteIdSet.size) return
