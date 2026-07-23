@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { listen } from '@tauri-apps/api/event';
+import { listen, emit } from '@tauri-apps/api/event';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { useSnapshot } from 'valtio';
 import { defaultSettings } from '@shared/services/settingsService';
@@ -987,18 +987,11 @@ function App() {
   ]);
 
   const displaySize = useMemo(() => {
-    if (previewMode === MODE_IMAGE) {
-      return {
-        width: boxSize.width * imageScale,
-        height: boxSize.height * imageScale,
-      };
-    }
-
     return {
       width: boxSize.width,
       height: boxSize.height,
     };
-  }, [previewMode, boxSize, imageScale]);
+  }, [boxSize]);
 
   const containerPosition = useMemo(() => {
     if (!previewData) {
@@ -1485,8 +1478,35 @@ function App() {
     );
   };
 
+  const handleMouseEnterWindow = useCallback(() => {
+    emit('preview-window-mouse-entered', { requestId: currentRequestId }).catch(() => { });
+  }, [currentRequestId]);
+
+  const handleMouseLeaveWindow = useCallback(() => {
+    invoke('close_preview_window').catch(() => { });
+  }, []);
+
+  const handleWheelWindow = useCallback((e) => {
+    if (previewMode === MODE_IMAGE) {
+      const direction = e.deltaY < 0 ? 'up' : 'down';
+      setImageScale((prev) => {
+        const next = direction === 'up' ? prev + IMAGE_SCALE_STEP * 1.5 : prev - IMAGE_SCALE_STEP * 1.5;
+        const clampedScale = clamp(Number(next.toFixed(2)), IMAGE_SCALE_MIN, IMAGE_SCALE_MAX);
+        if (clampedScale !== prev) {
+          showImageScaleIndicatorTemporarily();
+        }
+        return clampedScale;
+      });
+    }
+  }, [previewMode]);
+
   return (
-    <div className={`preview-container fixed inset-0 overflow-hidden bg-transparent ${isDark ? 'dark' : ''}`}>
+    <div
+      className={`preview-container fixed inset-0 overflow-hidden bg-transparent ${isDark ? 'dark' : ''}`}
+      onMouseEnter={handleMouseEnterWindow}
+      onMouseLeave={handleMouseLeaveWindow}
+      onWheel={handleWheelWindow}
+    >
       <div
         className="preview-theme-anchor pointer-events-none absolute opacity-0"
         style={{ width: 0, height: 0, overflow: 'hidden' }}
@@ -1710,38 +1730,50 @@ function App() {
 
       {previewMode === MODE_IMAGE && (
         <div
-          className="absolute overflow-visible pointer-events-none"
+          className="absolute overflow-visible"
           style={{
-            width: `${displaySize.width}px`,
-            height: `${displaySize.height}px`,
+            width: `${boxSize.width}px`,
+            height: `${boxSize.height}px`,
             left: `${relativeLeft}px`,
             top: `${relativeTop}px`,
             ...previewEntranceStyle,
           }}
         >
           <div
-            className="preview-image-stage relative z-10 overflow-visible"
+            className="preview-surface preview-image-surface relative z-10 w-full h-full border border-qc-border-strong overflow-hidden"
             style={{
-              width: `${boxSize.width}px`,
-              height: `${boxSize.height}px`,
-              transform: `scale(${imageScale})`,
-              transformOrigin: 'left top',
+              borderRadius: '8px',
+              backgroundColor: textContainerBackgroundColor,
+              boxShadow: '0 0 5px 1px rgba(0, 0, 0, 0.3), 0 0 3px 0 rgba(0, 0, 0, 0.2)',
             }}
           >
-            <ImagePreview
-              imageUrl={imageUrl}
-              imageLoadState={imageLoadState}
-              onLoad={(event) => {
-                const { naturalWidth, naturalHeight } = event.currentTarget;
-                if (naturalWidth > 0 && naturalHeight > 0) {
-                  setImageDimensions({ width: naturalWidth, height: naturalHeight });
-                }
-                setImageLoadState(IMAGE_STATUS_READY);
-              }}
-              onError={() => {
-                setImageLoadState(IMAGE_STATUS_ERROR);
-              }}
-            />
+            {blurredBackgroundLayerStyle && <div style={blurredBackgroundLayerStyle} />}
+            <div className="preview-image-stage relative z-10 w-full h-full flex items-center justify-center overflow-hidden">
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  transform: `scale(${imageScale})`,
+                  transformOrigin: 'center center',
+                  transition: 'transform 100ms ease-out',
+                }}
+              >
+                <ImagePreview
+                  imageUrl={imageUrl}
+                  imageLoadState={imageLoadState}
+                  onLoad={(event) => {
+                    const { naturalWidth, naturalHeight } = event.currentTarget;
+                    if (naturalWidth > 0 && naturalHeight > 0) {
+                      setImageDimensions({ width: naturalWidth, height: naturalHeight });
+                    }
+                    setImageLoadState(IMAGE_STATUS_READY);
+                  }}
+                  onError={() => {
+                    setImageLoadState(IMAGE_STATUS_ERROR);
+                  }}
+                />
+              </div>
+            </div>
           </div>
         </div>
       )}

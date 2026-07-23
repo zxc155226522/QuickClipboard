@@ -202,7 +202,7 @@ fn create_preview_window(
         work_area_height,
     )?;
     window
-        .set_ignore_cursor_events(true)
+        .set_ignore_cursor_events(false)
         .map_err(|e| format!("设置预览窗口忽略鼠标事件失败: {}", e))?;
 
     Ok(window)

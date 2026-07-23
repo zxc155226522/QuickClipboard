@@ -1,5 +1,5 @@
 import { memo, useEffect, useCallback, useMemo, useRef, useState } from 'react';
-import { emit } from '@tauri-apps/api/event';
+import { emit, listen } from '@tauri-apps/api/event';
 import '@tabler/icons-webfont/dist/tabler-icons.min.css';
 import { pasteFavorite, refreshFavorites } from '@shared/store/favoritesStore';
 import { ROW_HEIGHT_CONFIG, useItemCommon } from '@shared/hooks/useItemCommon.jsx';
@@ -243,6 +243,18 @@ function FavoriteItem({
   }, [item.id, item.content_type, item.content, item.html_content]);
 
   useEffect(() => {
+    const unlistenPromise = listen('preview-window-mouse-entered', () => {
+      if (previewTimerRef.current) {
+        clearTimeout(previewTimerRef.current);
+        previewTimerRef.current = null;
+      }
+    });
+    return () => {
+      unlistenPromise.then((unlisten) => unlisten()).catch(() => { });
+    };
+  }, []);
+
+  useEffect(() => {
     return () => {
       if (previewTimerRef.current) {
         clearTimeout(previewTimerRef.current);
@@ -344,10 +356,16 @@ function FavoriteItem({
     if (isMultiSelectMode) {
       return;
     }
-    closeHoverPreview();
     if (isImageOrFileType) {
       setShowDragSideTooltips(false);
     }
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+    previewTimerRef.current = setTimeout(() => {
+      closeHoverPreview();
+    }, 200);
   }, [closeHoverPreview, isImageOrFileType, isMultiSelectMode]);
 
   const handlePreviewWheel = useCallback((e) => {

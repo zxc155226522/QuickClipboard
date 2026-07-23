@@ -270,109 +270,15 @@ export function buildPreviewFileStats(files = []) {
 }
 
 export function resolveBoxSize(mode, workAreaHeight, workAreaWidth, options = {}) {
-  if (!isFiniteNumber(workAreaHeight) || workAreaHeight <= 0) {
-    return { width: 420, height: 560 };
-  }
+  const defaultWidth = 440;
+  const defaultHeight = 360;
+  const safeWorkAreaWidth = isFiniteNumber(workAreaWidth) && workAreaWidth > 0 ? workAreaWidth - 24 : defaultWidth;
+  const safeWorkAreaHeight = isFiniteNumber(workAreaHeight) && workAreaHeight > 0 ? workAreaHeight - 24 : defaultHeight;
 
-  if (mode === MODE_IMAGE) {
-    const maxEdge = clamp(
-      roundSize(workAreaHeight * 0.5, 180),
-      180,
-      Math.max(180, Math.min(workAreaWidth - 24, workAreaHeight - 24)),
-    );
-    const imageWidth = Number(options.imageWidth);
-    const imageHeight = Number(options.imageHeight);
-    if (isFiniteNumber(imageWidth) && imageWidth > 0 && isFiniteNumber(imageHeight) && imageHeight > 0) {
-      const scale = Math.min(maxEdge / imageWidth, maxEdge / imageHeight);
-      const width = clamp(roundSize(imageWidth * scale, 120), 120, Math.max(120, workAreaWidth - 24));
-      const height = clamp(roundSize(imageHeight * scale, 120), 120, Math.max(120, workAreaHeight - 24));
-      return { width, height };
-    }
+  const width = Math.round(clamp(defaultWidth, 200, safeWorkAreaWidth));
+  const height = Math.round(clamp(defaultHeight, 180, safeWorkAreaHeight));
 
-    return { width: maxEdge, height: maxEdge };
-  }
-
-  if (mode === MODE_FILE) {
-    const fileCount = Number(options.fileCount);
-    const visibleRows = isFiniteNumber(fileCount) && fileCount > 0
-      ? Math.min(fileCount, 9)
-      : 4;
-    const longestNameLength = Number(options.longestFileNameLength);
-    const longestPathLength = Number(options.longestFilePathLength);
-    const longestNameWidth = Number(options.longestFileNameWidth);
-    const longestPathLineWidth = Number(options.longestFilePathLineWidth);
-    const nameWidth = isFiniteNumber(longestNameWidth) && longestNameWidth > 0
-      ? clamp(Math.round(longestNameWidth), 96, 420)
-      : isFiniteNumber(longestNameLength) && longestNameLength > 0
-        ? clamp(Math.round(longestNameLength * 7.2), 96, 420)
-      : 128;
-    const pathWidth = isFiniteNumber(longestPathLineWidth) && longestPathLineWidth > 0
-      ? clamp(Math.round(longestPathLineWidth), 160, 760)
-      : isFiniteNumber(longestPathLength) && longestPathLength > 0
-        ? clamp(Math.round(longestPathLength * 5.8), 160, 760)
-      : 128;
-    const contentWidth = Math.max(nameWidth + 58, pathWidth) + 156;
-    const maxFileWidth = resolveFilePreviewMaxWidth(
-      workAreaWidth,
-      longestNameLength,
-      longestPathLength,
-    );
-    const width = clamp(
-      contentWidth + 32,
-      340,
-      maxFileWidth,
-    );
-    const maxHeight = clamp(
-      roundSize(workAreaHeight * 0.58, 220),
-      220,
-      Math.max(220, workAreaHeight - 24),
-    );
-    const summaryHeight = 34;
-    const verticalPadding = 16;
-    const heightSafety = 6;
-    const height = clamp(
-      summaryHeight + verticalPadding + visibleRows * 58 + heightSafety,
-      summaryHeight + verticalPadding + 58 + heightSafety,
-      maxHeight,
-    );
-
-    return { width, height };
-  }
-
-  if (mode === MODE_HTML) {
-    const preferredWidth = Number(options.htmlWidth);
-    const preferredHeight = Number(options.htmlHeight);
-    const maxWidth = resolveHtmlPreviewMaxWidth(workAreaHeight, workAreaWidth, options.htmlMaxWidth);
-    const maxHeight = resolveTextPreviewMaxHeight(workAreaHeight);
-
-    const width = isFiniteNumber(preferredWidth) && preferredWidth > 0
-      ? Math.round(preferredWidth)
-      : maxWidth;
-    const height = isFiniteNumber(preferredHeight) && preferredHeight > 0
-      ? Math.round(preferredHeight)
-      : TEXT_DEFAULT_HEIGHT;
-
-    return {
-      width: clamp(width, HTML_MIN_WIDTH, maxWidth),
-      height: clamp(height, TEXT_MIN_HEIGHT, maxHeight),
-    };
-  }
-
-  const maxWidth = resolveTextPreviewMaxWidth(workAreaHeight, workAreaWidth, options.textMaxWidth);
-  const maxHeight = resolveTextPreviewMaxHeight(workAreaHeight);
-  const preferredWidth = Number(options.textWidth);
-  const preferredHeight = Number(options.textHeight);
-  const finalWidth = clamp(
-    isFiniteNumber(preferredWidth) && preferredWidth > 0 ? Math.round(preferredWidth) : maxWidth,
-    TEXT_MIN_WIDTH,
-    maxWidth,
-  );
-  const finalHeight = clamp(
-    isFiniteNumber(preferredHeight) && preferredHeight > 0 ? Math.round(preferredHeight) : TEXT_DEFAULT_HEIGHT,
-    TEXT_MIN_HEIGHT,
-    maxHeight,
-  );
-  return { width: finalWidth, height: finalHeight };
+  return { width, height };
 }
 
 function isValidRect(rect) {
