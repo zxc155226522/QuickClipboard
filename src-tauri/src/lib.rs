@@ -178,6 +178,7 @@ pub fn run() {
                 windows::preview_window::reveal_preview_window,
                 windows::preview_window::finalize_hide_preview_window,
                 windows::preview_window::get_preview_window_data,
+                windows::preview_window::set_preview_window_ignore_cursor,
                 windows::transfer_shelf::commands::transfer_shelf_create,
                 windows::transfer_shelf::commands::transfer_shelf_list,
                 windows::transfer_shelf::commands::transfer_shelf_focus,

@@ -202,7 +202,7 @@ fn create_preview_window(
         work_area_height,
     )?;
     window
-        .set_ignore_cursor_events(false)
+        .set_ignore_cursor_events(true)
         .map_err(|e| format!("设置预览窗口忽略鼠标事件失败: {}", e))?;
 
     Ok(window)
@@ -495,4 +495,14 @@ pub fn get_preview_window_data() -> Result<PreviewWindowData, String> {
         .map_err(|_| "获取预览窗口数据失败".to_string())?
         .clone()
         .ok_or_else(|| "预览窗口数据不存在".to_string())
+}
+
+#[tauri::command]
+pub fn set_preview_window_ignore_cursor(app: AppHandle, ignore: bool) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window(PREVIEW_WINDOW_LABEL) {
+        window
+            .set_ignore_cursor_events(ignore)
+            .map_err(|e| format!("设置预览窗口忽略鼠标事件失败: {}", e))?;
+    }
+    Ok(())
 }

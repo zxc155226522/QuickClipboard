@@ -346,6 +346,7 @@ function App() {
   const htmlPreviewRef = useRef(null);
   const filePreviewRef = useRef(null);
   const imageScaleIndicatorTimerRef = useRef(null);
+  const isIgnoringCursorRef = useRef(true);
   const settings = useSnapshot(settingsStore);
   const { theme, lightThemeStyle, darkThemeStyle, backgroundImagePath } = settings;
   const { effectiveTheme, isDark, isBackground } = useTheme();
@@ -373,6 +374,10 @@ function App() {
     });
     setHasMousePosition(false);
     setIsVisible(false);
+    if (!isIgnoringCursorRef.current) {
+      isIgnoringCursorRef.current = true;
+      invoke('set_preview_window_ignore_cursor', { ignore: true }).catch(() => { });
+    }
     if (revealAnimationFrameRef.current) {
       cancelAnimationFrame(revealAnimationFrameRef.current);
       revealAnimationFrameRef.current = 0;
@@ -710,6 +715,29 @@ function App() {
             if (prev.x === x && prev.y === y) return prev;
             return { x, y };
           });
+
+          // 计算全局鼠标指针相对于当前预览卡片盒的位置
+          const cursorRelX = x / scaleFactor - workAreaLogical.left;
+          const cursorRelY = y / scaleFactor - workAreaLogical.top;
+
+          const isInsideBox =
+            cursorRelX >= relativeLeft &&
+            cursorRelX <= relativeLeft + displaySize.width &&
+            cursorRelY >= relativeTop &&
+            cursorRelY <= relativeTop + displaySize.height;
+
+          if (isInsideBox) {
+            if (isIgnoringCursorRef.current) {
+              isIgnoringCursorRef.current = false;
+              invoke('set_preview_window_ignore_cursor', { ignore: false }).catch(() => { });
+              emit('preview-window-mouse-entered', { requestId: currentRequestId }).catch(() => { });
+            }
+          } else {
+            if (!isIgnoringCursorRef.current) {
+              isIgnoringCursorRef.current = true;
+              invoke('set_preview_window_ignore_cursor', { ignore: true }).catch(() => { });
+            }
+          }
         })
         .catch(() => { })
         .finally(() => {
@@ -722,8 +750,22 @@ function App() {
     return () => {
       cancelled = true;
       clearInterval(timer);
+      if (!isIgnoringCursorRef.current) {
+        isIgnoringCursorRef.current = true;
+        invoke('set_preview_window_ignore_cursor', { ignore: true }).catch(() => { });
+      }
     };
-  }, [previewData]);
+  }, [
+    previewData,
+    scaleFactor,
+    workAreaLogical.left,
+    workAreaLogical.top,
+    relativeLeft,
+    relativeTop,
+    displaySize.width,
+    displaySize.height,
+    currentRequestId,
+  ]);
 
   useEffect(() => {
     setIsVisible(false);
