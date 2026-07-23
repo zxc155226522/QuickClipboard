@@ -261,8 +261,7 @@ fn capture_primary_content(
     }
 
     // 只有图片、没有可见文本时，收敛成纯图片
-    if content.image_path.is_some()
-        && content.files.is_none()
+    if content.files.is_none()
         && content
             .text
             .as_deref()
@@ -270,11 +269,12 @@ fn capture_primary_content(
             .unwrap_or(true)
         && is_image_only_html(content.html.as_deref())
     {
-        let image_path = content.image_path.clone().unwrap();
-        content.content_type = ContentType::Files;
-        content.text = None;
-        content.html = None;
-        content.files = Some(vec![image_path]);
+        if let Some(image_path) = content.image_path.clone() {
+            content.content_type = ContentType::Files;
+            content.text = None;
+            content.html = None;
+            content.files = Some(vec![image_path]);
+        }
     }
     Ok(content)
 }
