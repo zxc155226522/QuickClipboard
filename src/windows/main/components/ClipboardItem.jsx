@@ -736,7 +736,7 @@ function ClipboardItem({
               onClick={handleFavoriteClick}
               aria-pressed={Boolean(item.favorite_id)}
             >
-              <i className={item.favorite_id ? 'ti ti-star-filled' : 'ti ti-star'} style={{ fontSize: 12 }}></i>
+              <i className="ti ti-star" style={{ fontSize: 12 }}></i>
             </button>
           </Tooltip>
           {(renderType === 'text' || renderType === 'rich_text') && (
@@ -756,7 +756,7 @@ function ClipboardItem({
               className={`${actionButtonClasses} ${item.is_pinned ? 'text-theme-9 bg-qc-active' : ''}`}
               onClick={handlePinClick}
             >
-              <i className={item.is_pinned ? 'ti ti-pinned-filled' : 'ti ti-pin'} style={{ fontSize: 12 }}></i>
+              <i className={item.is_pinned ? 'ti ti-pinned' : 'ti ti-pin'} style={{ fontSize: 12 }}></i>
             </button>
           </Tooltip>
         </div>}
