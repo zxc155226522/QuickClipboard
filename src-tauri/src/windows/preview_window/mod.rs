@@ -16,11 +16,82 @@ const PREVIEW_ALWAYS_ON_TOP_REFRESH_DELAY_MS: u64 = 10;
 const PREVIEW_HIDE_WATCHDOG_DURATION_MS: u64 = 5_000;
 const PREVIEW_HIDE_WATCHDOG_INTERVAL_MS: u64 = 100;
 
+// 悬浮预览窗固定尺寸（逻辑像素）
+const PREVIEW_WINDOW_DEFAULT_WIDTH: u32 = 640;
+const PREVIEW_WINDOW_DEFAULT_HEIGHT: u32 = 480;
+const PREVIEW_WINDOW_MIN_WIDTH: u32 = 240;
+const PREVIEW_WINDOW_MIN_HEIGHT: u32 = 200;
+const PREVIEW_WINDOW_MAX_WIDTH: u32 = 1920;
+const PREVIEW_WINDOW_MAX_HEIGHT: u32 = 1200;
+const PREVIEW_MAIN_GAP: i32 = 18;
+const PREVIEW_CURSOR_OFFSET: i32 = 16;
+
 static PREVIEW_REQUEST_VERSION: AtomicU64 = AtomicU64::new(0);
 static PREVIEW_DESTROY_TIMER_VERSION: AtomicU64 = AtomicU64::new(0);
 static PREVIEW_HIDE_WATCHDOG_VERSION: AtomicU64 = AtomicU64::new(0);
 static PREVIEW_SUPPRESSED: AtomicBool = AtomicBool::new(false);
+static PREVIEW_PINNED: AtomicBool = AtomicBool::new(false);
 static PREVIEW_DATA: Lazy<Mutex<Option<PreviewWindowData>>> = Lazy::new(|| Mutex::new(None));
+
+fn clamp_i32(value: i32, min: i32, max: i32) -> i32 {
+  if min > max {
+    return min;
+  }
+  value.min(max).max(min)
+}
+
+/// 计算悬浮预览窗的物理矩形（左上角坐标 + 宽高），尽量放在主窗口右侧，
+/// 其次左侧，否则靠近光标；最终夹取到工作区内。
+#[allow(clippy::too_many_arguments)]
+fn resolve_preview_window_rect(
+  work_area_x: i32,
+  work_area_y: i32,
+  work_area_width: u32,
+  work_area_height: u32,
+  main_window: Option<(i32, i32, u32, u32)>,
+  cursor_x: i32,
+  cursor_y: i32,
+  width: u32,
+  height: u32,
+) -> (i32, i32, u32, u32) {
+  let wa_left = work_area_x;
+  let wa_top = work_area_y;
+  let wa_right = wa_left + work_area_width as i32;
+  let wa_bottom = wa_top + work_area_height as i32;
+
+  let width = width.min((work_area_width.saturating_sub(8)).max(PREVIEW_WINDOW_MIN_WIDTH));
+  let height = height.min((work_area_height.saturating_sub(8)).max(PREVIEW_WINDOW_MIN_HEIGHT));
+
+  let mut left = cursor_x + PREVIEW_CURSOR_OFFSET;
+  let mut top = cursor_y + PREVIEW_CURSOR_OFFSET;
+
+  if let Some((mw_x, mw_y, mw_w, mw_h)) = main_window {
+    let mw_right = mw_x + mw_w as i32;
+    let mw_left = mw_x;
+    let mw_top = mw_y;
+    let mw_bottom = mw_y + mw_h as i32;
+
+    let right_target = mw_right + PREVIEW_MAIN_GAP;
+    let left_target = mw_left - PREVIEW_MAIN_GAP - width as i32;
+    let can_right = right_target + width as i32 <= wa_right;
+    let can_left = left_target >= wa_left;
+
+    if can_right || can_left {
+      left = if can_right && (!can_left || (right_target + width as i32) <= wa_right) {
+        right_target
+      } else {
+        left_target
+      };
+      let preferred_top = cursor_y - height as i32 / 2;
+      top = clamp_i32(preferred_top, mw_top, mw_bottom.saturating_sub(height as i32).max(mw_top));
+    }
+  }
+
+  left = clamp_i32(left, wa_left, wa_right.saturating_sub(width as i32).max(wa_left));
+  top = clamp_i32(top, wa_top, wa_bottom.saturating_sub(height as i32).max(wa_top));
+
+  (left, top, width, height)
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -59,6 +130,7 @@ fn destroy_preview_window_internal(app: &AppHandle) {
     if let Ok(mut guard) = PREVIEW_DATA.lock() {
         *guard = None;
     }
+    PREVIEW_PINNED.store(false, Ordering::SeqCst);
 }
 
 fn hide_preview_window_internal(app: &AppHandle) {
@@ -80,18 +152,16 @@ fn refresh_preview_window_always_on_top(window: &WebviewWindow) -> Result<(), St
     Ok(())
 }
 
-fn apply_preview_window_bounds(
+fn apply_preview_window_rect(
     window: &WebviewWindow,
-    work_area_x: i32,
-    work_area_y: i32,
-    work_area_width: u32,
-    work_area_height: u32,
+    rect: (i32, i32, u32, u32),
 ) -> Result<(), String> {
+    let (phys_x, phys_y, phys_w, phys_h) = rect;
     window
-        .set_position(PhysicalPosition::new(work_area_x, work_area_y))
+        .set_position(PhysicalPosition::new(phys_x, phys_y))
         .map_err(|e| format!("设置预览窗口位置失败: {}", e))?;
     window
-        .set_size(PhysicalSize::new(work_area_width, work_area_height))
+        .set_size(PhysicalSize::new(phys_w, phys_h))
         .map_err(|e| format!("设置预览窗口大小失败: {}", e))?;
     Ok(())
 }
@@ -155,21 +225,19 @@ fn schedule_preview_hide_watchdog(app: AppHandle, watchdog_version: u64) {
 
 fn create_preview_window(
     app: &AppHandle,
-    work_area_x: i32,
-    work_area_y: i32,
-    work_area_width: u32,
-    work_area_height: u32,
+    rect: (i32, i32, u32, u32),
     scale_factor: f64,
 ) -> Result<WebviewWindow, String> {
+    let (phys_x, phys_y, phys_w, phys_h) = rect;
     let logical_scale = if scale_factor > 0.0 {
         scale_factor
     } else {
         1.0
     };
-    let logical_x = work_area_x as f64 / logical_scale;
-    let logical_y = work_area_y as f64 / logical_scale;
-    let logical_width = (work_area_width as f64 / logical_scale).max(1.0);
-    let logical_height = (work_area_height as f64 / logical_scale).max(1.0);
+    let logical_x = phys_x as f64 / logical_scale;
+    let logical_y = phys_y as f64 / logical_scale;
+    let logical_width = (phys_w as f64 / logical_scale).max(1.0);
+    let logical_height = (phys_h as f64 / logical_scale).max(1.0);
 
     let window = WebviewWindowBuilder::new(
         app,
@@ -188,22 +256,14 @@ fn create_preview_window(
     .always_on_top(true)
     .skip_taskbar(true)
     .focused(false)
-    .focusable(false)
+    .focusable(true)
     .visible(false)
     .drag_and_drop(false)
     .build()
     .map_err(|e| format!("创建预览窗口失败: {}", e))?;
 
-    apply_preview_window_bounds(
-        &window,
-        work_area_x,
-        work_area_y,
-        work_area_width,
-        work_area_height,
-    )?;
-    window
-        .set_ignore_cursor_events(true)
-        .map_err(|e| format!("设置预览窗口忽略鼠标事件失败: {}", e))?;
+    // 注意：不再调用 set_ignore_cursor_events，悬浮窗现在是可交互的固定大小窗口，
+    // 鼠标事件（滚轮缩放 / 滚动 / 点击按钮）需要正常接收。
 
     Ok(window)
 }
@@ -215,8 +275,15 @@ pub async fn show_preview_window(
     source: String,
     item_id: String,
     item_rect: Option<PreviewAnchorRect>,
+    preview_width: Option<u32>,
+    preview_height: Option<u32>,
 ) -> Result<(), String> {
     if PREVIEW_SUPPRESSED.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+
+    // 已固定时忽略新的预览请求，保持当前内容
+    if PREVIEW_PINNED.load(Ordering::SeqCst) {
         return Ok(());
     }
 
@@ -226,12 +293,6 @@ pub async fn show_preview_window(
 
     let window_state = crate::get_window_state();
     if window_state.state != crate::WindowState::Visible {
-        eprintln!(
-            "主窗口当前未处于可见状态，忽略预览窗口创建请求（state: {:?}, snapped: {}, hidden: {}）",
-            window_state.state,
-            window_state.is_snapped,
-            window_state.is_hidden,
-        );
         return Ok(());
     }
 
@@ -250,6 +311,41 @@ pub async fn show_preview_window(
         app.get_webview_window("main")
             .and_then(|window| crate::get_window_bounds(&window).ok())
             .unwrap_or((0, 0, 0, 0));
+
+    let requested_width = preview_width
+        .unwrap_or(0)
+        .clamp(PREVIEW_WINDOW_MIN_WIDTH, PREVIEW_WINDOW_MAX_WIDTH);
+    let requested_height = preview_height
+        .unwrap_or(0)
+        .clamp(PREVIEW_WINDOW_MIN_HEIGHT, PREVIEW_WINDOW_MAX_HEIGHT);
+    let width = if requested_width > 0 {
+        requested_width
+    } else {
+        PREVIEW_WINDOW_DEFAULT_WIDTH
+    };
+    let height = if requested_height > 0 {
+        requested_height
+    } else {
+        PREVIEW_WINDOW_DEFAULT_HEIGHT
+    };
+
+    let main_window_opt = if main_window_width > 0 && main_window_height > 0 {
+        Some((main_window_x, main_window_y, main_window_width, main_window_height))
+    } else {
+        None
+    };
+
+    let rect = resolve_preview_window_rect(
+        work_area_x,
+        work_area_y,
+        work_area_width,
+        work_area_height,
+        main_window_opt,
+        cursor_x,
+        cursor_y,
+        width,
+        height,
+    );
 
     let preview_data = PreviewWindowData {
         mode,
@@ -273,17 +369,17 @@ pub async fn show_preview_window(
     upsert_preview_data(preview_data.clone());
 
     if let Some(existing) = app.get_webview_window(PREVIEW_WINDOW_LABEL) {
-        apply_preview_window_bounds(
-            &existing,
-            work_area_x,
-            work_area_y,
-            work_area_width,
-            work_area_height,
-        )?;
-        refresh_preview_window_always_on_top(&existing)?;
-        existing
-            .emit("preview-window-data-updated", &preview_data)
-            .map_err(|e| format!("推送预览窗口数据失败: {}", e))?;
+        if let Err(e) = apply_preview_window_rect(&existing, rect) {
+            return Err(e);
+        }
+        if let Err(e) = refresh_preview_window_always_on_top(&existing) {
+            return Err(e);
+        }
+        if let Err(e) = existing.emit("preview-window-data-updated", &preview_data) {
+            return Err(format!("推送预览窗口数据失败: {}", e));
+        }
+        // 直接显示窗口，避免依赖前端 reveal 往返导致窗口滞留隐藏态
+        let _ = existing.show();
         return Ok(());
     }
 
@@ -298,10 +394,7 @@ pub async fn show_preview_window(
 
             let window = match create_preview_window(
                 &app_for_create,
-                work_area_x,
-                work_area_y,
-                work_area_width,
-                work_area_height,
+                rect,
                 scale_factor,
             ) {
                 Ok(window) => window,
@@ -322,10 +415,9 @@ pub async fn show_preview_window(
                 return;
             }
 
-            if let Err(error) = refresh_preview_window_always_on_top(&window) {
-                eprintln!("刷新预览窗口置顶失败: {}", error);
-            }
+            let _ = refresh_preview_window_always_on_top(&window);
             let _ = window.emit("preview-window-data-updated", &preview_data_for_create);
+            let _ = window.show();
             return;
         }
 
@@ -334,6 +426,12 @@ pub async fn show_preview_window(
         }
     });
 
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_preview_pinned(pinned: bool) -> Result<(), String> {
+    PREVIEW_PINNED.store(pinned, Ordering::SeqCst);
     Ok(())
 }
 
@@ -408,13 +506,28 @@ pub fn warmup_preview_window(app: &AppHandle) {
         let work_area_height = work_area.size.height;
 
         let mut last_error = None;
+        let warmup_rect = (
+            clamp_i32(
+                work_area_x + 40,
+                work_area_x,
+                (work_area_x + work_area_width as i32)
+                    .saturating_sub(PREVIEW_WINDOW_DEFAULT_WIDTH as i32)
+                    .max(work_area_x),
+            ),
+            clamp_i32(
+                work_area_y + 40,
+                work_area_y,
+                (work_area_y + work_area_height as i32)
+                    .saturating_sub(PREVIEW_WINDOW_DEFAULT_HEIGHT as i32)
+                    .max(work_area_y),
+            ),
+            PREVIEW_WINDOW_DEFAULT_WIDTH,
+            PREVIEW_WINDOW_DEFAULT_HEIGHT,
+        );
         for _ in 0..3 {
             match create_preview_window(
                 &app,
-                work_area_x,
-                work_area_y,
-                work_area_width,
-                work_area_height,
+                warmup_rect,
                 scale_factor,
             ) {
                 Ok(_window) => {

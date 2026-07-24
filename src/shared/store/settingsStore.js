@@ -1,6 +1,6 @@
 import { proxy } from 'valtio'
+import { defaultSettings } from '@shared/services/defaultSettings'
 import { 
-  defaultSettings, 
   loadSettingsFromBackend, 
   saveSettingsToBackend 
 } from '@shared/services/settingsService'

@@ -221,7 +221,10 @@ function ClipboardItem({
     closePreviewWindow().catch(() => { });
   }, []);
   const scheduleHoverPreview = useCallback(() => {
-    closeHoverPreview();
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
     if (!previewMode || !previewEnabled) {
       return;
     }
@@ -230,7 +233,7 @@ function ClipboardItem({
         console.error('显示预览失败:', error);
       });
     }, PREVIEW_HOVER_DELAY_MS);
-  }, [closeHoverPreview, getPreviewAnchorRect, item.id, previewEnabled, previewMode]);
+  }, [getPreviewAnchorRect, item.id, previewEnabled, previewMode]);
 
   const handleExternalDragMouseDown = useDragWithThreshold({
     onDragStart: () => {
@@ -358,16 +361,19 @@ function ClipboardItem({
     scheduleHoverPreview();
   };
 
-  // 处理鼠标离开
+  // 处理鼠标离开：悬浮预览窗改为常驻，离开列表项不再关闭，仅清理计时器
   const handleMouseLeave = useCallback(() => {
     if (isMultiSelectMode) {
       return;
     }
-    closeHoverPreview();
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
     if (isImageOrFileType) {
       setShowDragSideTooltips(false);
     }
-  }, [closeHoverPreview, isImageOrFileType, isMultiSelectMode]);
+  }, [isImageOrFileType, isMultiSelectMode]);
 
   const handlePreviewWheel = useCallback((e) => {
     if (isMultiSelectMode || !e.ctrlKey || !previewMode || !previewEnabled) {

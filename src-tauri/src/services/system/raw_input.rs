@@ -830,9 +830,8 @@ mod windows_raw_input {
             return;
         }
 
-        if is_mouse_outside_window_impl(&main_window) {
-            crate::windows::preview_window::force_close_preview_window(&app);
-        }
+        // 悬浮预览窗现在是常驻可交互窗口：鼠标离开主窗口不再自动关闭，
+        // 由窗口自身的关闭按钮 / Esc 关闭（钉住时也不关闭）。
     }
 
     fn handle_click_outside_impl() {
@@ -866,6 +865,16 @@ mod windows_raw_input {
 
         if !should_handle_click_outside_impl() {
             return;
+        }
+
+        // 点击落在悬浮预览窗内部时，不隐藏主窗口，也不关闭预览（钉住与否都不关）
+        if let Some(app) = input_common::try_get_app_handle() {
+            if let Some(preview_window) = app.get_webview_window("preview-window") {
+                if preview_window.is_visible().unwrap_or(false)
+                    && !is_mouse_outside_window_impl(&preview_window) {
+                    return;
+                }
+            }
         }
 
         if let Some(window) = input_common::try_get_main_window() {

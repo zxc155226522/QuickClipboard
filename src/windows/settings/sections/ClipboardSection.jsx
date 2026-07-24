@@ -6,6 +6,15 @@ import Select from '@shared/components/ui/Select';
 import Input from '@shared/components/ui/Input';
 import Textarea from '@shared/components/ui/Textarea';
 import MultiSegmentedControl from '@shared/components/ui/MultiSegmentedControl';
+
+const clampInt = (value, min, max) => {
+  const n = parseInt(value, 10);
+  if (!Number.isFinite(n)) {
+    return min;
+  }
+  return Math.min(max, Math.max(min, n));
+};
+
 function ClipboardSection({
   settings,
   onSettingChange
@@ -92,6 +101,14 @@ function ClipboardSection({
 
         <SettingItem label={t('settings.clipboard.displayPriority')} description={t('settings.clipboard.displayPriorityDesc')}>
           <Select value={settings.displayPriorityOrder || 'text,html,image'} onChange={value => onSettingChange('displayPriorityOrder', value)} options={displayPriorityOptions} className="w-56" />
+        </SettingItem>
+
+        <SettingItem label={t('settings.clipboard.previewWindowSize')} description={t('settings.clipboard.previewWindowSizeDesc')}>
+          <div className="flex items-center gap-2">
+            <Input type="number" value={settings.previewWindowWidth ?? 640} onChange={e => onSettingChange('previewWindowWidth', clampInt(e.target.value, 240, 1920))} min={240} max={1920} className="w-24" />
+            <span className="text-qc-fg-muted">×</span>
+            <Input type="number" value={settings.previewWindowHeight ?? 480} onChange={e => onSettingChange('previewWindowHeight', clampInt(e.target.value, 200, 1200))} min={200} max={1200} className="w-24" suffix="px" />
+          </div>
         </SettingItem>
 
         <SettingItem label={t('settings.clipboard.imageMaxSize')} description={t('settings.clipboard.imageMaxSizeDesc')}>

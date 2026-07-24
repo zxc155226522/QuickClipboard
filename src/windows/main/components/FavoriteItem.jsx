@@ -201,7 +201,10 @@ function FavoriteItem({
     };
   }, []);
   const scheduleHoverPreview = useCallback(() => {
-    closeHoverPreview();
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
     if (!previewMode || !previewEnabled) {
       return;
     }
@@ -210,7 +213,7 @@ function FavoriteItem({
         console.error('显示预览失败:', error);
       });
     }, PREVIEW_HOVER_DELAY_MS);
-  }, [closeHoverPreview, getPreviewAnchorRect, item.id, previewEnabled, previewMode]);
+  }, [getPreviewAnchorRect, item.id, previewEnabled, previewMode]);
 
   const handleExternalDragMouseDown = useDragWithThreshold({
     onDragStart: () => {
@@ -344,11 +347,14 @@ function FavoriteItem({
     if (isMultiSelectMode) {
       return;
     }
-    closeHoverPreview();
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
     if (isImageOrFileType) {
       setShowDragSideTooltips(false);
     }
-  }, [closeHoverPreview, isImageOrFileType, isMultiSelectMode]);
+  }, [isImageOrFileType, isMultiSelectMode]);
 
   const handlePreviewWheel = useCallback((e) => {
     if (isMultiSelectMode || !e.ctrlKey || !previewMode || !previewEnabled) {
@@ -664,7 +670,7 @@ function FavoriteItem({
       {/* 顶部操作区域：操作按钮、分组、序号 */}
       <div className={floatingControlsClasses}>
         {/* 悬停操作按钮组 */}
-        {!isMultiSelectMode && <div className={actionGroupClasses} onMouseEnter={closeHoverPreview} onMouseLeave={handleActionGroupMouseLeave}>
+        {!isMultiSelectMode && <div className={actionGroupClasses} onMouseLeave={handleActionGroupMouseLeave}>
           {/* 编辑内容按钮 */}
           {isTextOrRichText && (
             <Tooltip content={t('common.edit')} placement="bottom" asChild>

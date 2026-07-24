@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { listen } from '@tauri-apps/api/event';
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { useSnapshot } from 'valtio';
 import { defaultSettings } from '@shared/services/settingsService';
 import { settingsStore, initSettings } from '@shared/store/settingsStore';
@@ -28,7 +28,6 @@ import {
   ImagePreview,
   FilePreview,
   HtmlPreview,
-  PreviewHint,
   TextPreview,
 } from './views';
 import {
@@ -47,14 +46,6 @@ import {
   IMAGE_STATUS_ERROR,
   clamp,
   isFiniteNumber,
-  resolveBoxSize,
-  resolveHtmlPreviewMaxWidth,
-  resolvePreviewDirectionalAvailableWidth,
-  chooseContainerPosition,
-  resolveTextPreviewMaxHeight,
-  resolveTextPreviewMaxWidth,
-  TEXT_MIN_WIDTH,
-  HTML_MIN_WIDTH,
   resolvePreviewMode,
   parsePreviewFiles,
   buildPreviewFileStats,
@@ -63,12 +54,13 @@ import {
   parseFirstImageId,
   parseImageDimensionsFromItem,
 } from './utils';
-import {
-  measureHtmlPreviewSize,
-  measurePlainTextPreviewSize,
-} from './textMeasure';
+import { closePreviewWindow, setPreviewPinned } from '@shared/api/previewWindow';
 
 const IMAGE_FILE_EXTENSION_PATTERN = /\.(png|jpe?g|gif|webp|bmp|svg|ico|tiff?|avif)$/i;
+
+// 布局常量（逻辑像素）
+const TOOLBAR_HEIGHT = 32;
+const CONTENT_PADDING = 10;
 
 function isLikelyImageFilePath(value) {
   if (typeof value !== 'string') {
@@ -188,135 +180,6 @@ function orderPreviewModesByDisplayPriority(modes, displayPriorityOrder) {
   });
 }
 
-function isValidPreviewAnchorRect(rect) {
-  return rect
-    && isFiniteNumber(Number(rect.left))
-    && isFiniteNumber(Number(rect.top))
-    && isFiniteNumber(Number(rect.width))
-    && isFiniteNumber(Number(rect.height))
-    && Number(rect.width) > 0
-    && Number(rect.height) > 0;
-}
-
-function buildRectSideAnchors(rect) {
-  return [
-    {
-      side: 'left',
-      x: rect.left,
-      y: rect.top + (rect.height / 2),
-      normalX: -1,
-      normalY: 0,
-    },
-    {
-      side: 'right',
-      x: rect.left + rect.width,
-      y: rect.top + (rect.height / 2),
-      normalX: 1,
-      normalY: 0,
-    },
-    {
-      side: 'top',
-      x: rect.left + (rect.width / 2),
-      y: rect.top,
-      normalX: 0,
-      normalY: -1,
-    },
-    {
-      side: 'bottom',
-      x: rect.left + (rect.width / 2),
-      y: rect.top + rect.height,
-      normalX: 0,
-      normalY: 1,
-    },
-  ];
-}
-
-function isPointInsideRect(point, rect) {
-  return point.x > rect.left
-    && point.x < rect.left + rect.width
-    && point.y > rect.top
-    && point.y < rect.top + rect.height;
-}
-
-function segmentOverlapsRectInterior(start, end, rect, steps = 24) {
-  if (!rect || rect.width <= 0 || rect.height <= 0) {
-    return false;
-  }
-
-  const margin = 6;
-  const innerRect = {
-    left: rect.left + margin,
-    top: rect.top + margin,
-    width: Math.max(0, rect.width - (margin * 2)),
-    height: Math.max(0, rect.height - (margin * 2)),
-  };
-
-  if (innerRect.width <= 0 || innerRect.height <= 0) {
-    return false;
-  }
-
-  for (let index = 1; index < steps; index += 1) {
-    const t = index / steps;
-    const point = {
-      x: start.x + ((end.x - start.x) * t),
-      y: start.y + ((end.y - start.y) * t),
-    };
-    if (isPointInsideRect(point, innerRect)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function resolveBestRectConnection(sourceRect, targetRect) {
-  const sourceAnchors = buildRectSideAnchors(sourceRect);
-  const targetAnchors = buildRectSideAnchors(targetRect);
-  const candidates = [];
-
-  sourceAnchors.forEach((sourceAnchor) => {
-    targetAnchors.forEach((targetAnchor) => {
-      const start = { x: sourceAnchor.x, y: sourceAnchor.y };
-      const end = { x: targetAnchor.x, y: targetAnchor.y };
-      const deltaX = end.x - start.x;
-      const deltaY = end.y - start.y;
-      const distance = Math.hypot(deltaX, deltaY);
-      const crossesPreview = segmentOverlapsRectInterior(start, end, targetRect);
-      const outwardPenalty = (deltaX * sourceAnchor.normalX) + (deltaY * sourceAnchor.normalY) >= 0 ? 0 : 40;
-      const inwardPenalty = ((-deltaX) * targetAnchor.normalX) + ((-deltaY) * targetAnchor.normalY) >= 0 ? 0 : 40;
-      const handleDistance = clamp(distance * 0.22, 20, 64);
-      const control1 = {
-        x: start.x + (sourceAnchor.normalX * handleDistance),
-        y: start.y + (sourceAnchor.normalY * handleDistance),
-      };
-      const control2 = {
-        x: end.x + (targetAnchor.normalX * handleDistance),
-        y: end.y + (targetAnchor.normalY * handleDistance),
-      };
-      const connectorPath = [
-        `M ${start.x} ${start.y}`,
-        `C ${control1.x} ${control1.y}, ${control2.x} ${control2.y}, ${end.x} ${end.y}`,
-      ].join(' ');
-      const score = (crossesPreview ? 100000 : 0) + outwardPenalty + inwardPenalty + distance;
-
-      candidates.push({
-        connectorPath,
-        control1,
-        control2,
-        score,
-        sourceSide: sourceAnchor.side,
-        targetSide: targetAnchor.side,
-        sourceX: start.x,
-        sourceY: start.y,
-        targetX: end.x,
-        targetY: end.y,
-      });
-    });
-  });
-
-  return candidates.reduce((best, current) => (current.score < best.score ? current : best));
-}
-
 function App() {
   const { t } = useTranslation();
   const [previewData, setPreviewData] = useState(null);
@@ -331,21 +194,28 @@ function App() {
   const [imageLoadState, setImageLoadState] = useState(IMAGE_STATUS_IDLE);
   const [imageDimensions, setImageDimensions] = useState(null);
   const [imageScale, setImageScale] = useState(1);
+  const [imagePan, setImagePan] = useState({ x: 0, y: 0 });
   const [showImageScaleIndicator, setShowImageScaleIndicator] = useState(false);
   const [scrollability, setScrollability] = useState({
     text: false,
     html: false,
     file: false,
   });
-  const [hasMousePosition, setHasMousePosition] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  const [mousePositionPhysical, setMousePositionPhysical] = useState({ x: 0, y: 0 });
+  const [pinned, setPinned] = useState(false);
+  const [windowSize, setWindowSize] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 640,
+    height: typeof window !== 'undefined' ? window.innerHeight : 480,
+  });
   const revealedRequestIdRef = useRef(0);
   const revealAnimationFrameRef = useRef(0);
   const textPreviewRef = useRef(null);
   const htmlPreviewRef = useRef(null);
   const filePreviewRef = useRef(null);
   const imageScaleIndicatorTimerRef = useRef(null);
+  const imageStageRef = useRef(null);
+  const imageDragRef = useRef({ active: false, lastX: 0, lastY: 0 });
+  const panStateRef = useRef({ x: 0, y: 0 });
   const settings = useSnapshot(settingsStore);
   const { theme, lightThemeStyle, darkThemeStyle, backgroundImagePath } = settings;
   const { effectiveTheme, isDark, isBackground } = useTheme();
@@ -365,13 +235,15 @@ function App() {
     setImageLoadState(IMAGE_STATUS_IDLE);
     setImageDimensions(null);
     setImageScale(1);
+    setImagePan({ x: 0, y: 0 });
+    panStateRef.current = { x: 0, y: 0 };
     setShowImageScaleIndicator(false);
     setScrollability({
       text: false,
       html: false,
       file: false,
     });
-    setHasMousePosition(false);
+    setPinned(false);
     setIsVisible(false);
     if (revealAnimationFrameRef.current) {
       cancelAnimationFrame(revealAnimationFrameRef.current);
@@ -403,12 +275,7 @@ function App() {
         if (!mounted) return;
         setPreviewData(data);
         revealedRequestIdRef.current = 0;
-        const cursorX = Number(data?.cursor_x);
-        const cursorY = Number(data?.cursor_y);
-        if (isFiniteNumber(cursorX) && isFiniteNumber(cursorY)) {
-          setMousePositionPhysical({ x: cursorX, y: cursorY });
-          setHasMousePosition(true);
-        }
+        setIsVisible(true);
       })
       .catch((error) => {
         console.error('获取预览窗口数据失败:', error);
@@ -420,14 +287,14 @@ function App() {
 
   useEffect(() => {
     const applyPreviewData = (data) => {
+      // 已固定时保持当前内容，忽略新的预览请求
+      if (pinned) {
+        return;
+      }
       setPreviewData(data);
       revealedRequestIdRef.current = 0;
-      const cursorX = Number(data?.cursor_x);
-      const cursorY = Number(data?.cursor_y);
-      if (isFiniteNumber(cursorX) && isFiniteNumber(cursorY)) {
-        setMousePositionPhysical({ x: cursorX, y: cursorY });
-        setHasMousePosition(true);
-      }
+      // 拿到数据立即显示卡片，避免依赖 reveal 往返导致不可见
+      setIsVisible(true);
     };
 
     const unlistenPromise = listen('preview-window-data-updated', (event) => {
@@ -437,7 +304,7 @@ function App() {
     return () => {
       unlistenPromise.then((unlisten) => unlisten()).catch(() => { });
     };
-  }, []);
+  }, [pinned]);
 
   useEffect(() => {
     const unlistenPromise = listen('preview-window-will-hide', (event) => {
@@ -507,6 +374,8 @@ function App() {
     setImageLoadState(IMAGE_STATUS_IDLE);
     setImageDimensions(null);
     setImageScale(1);
+    setImagePan({ x: 0, y: 0 });
+    panStateRef.current = { x: 0, y: 0 };
     setShowImageScaleIndicator(false);
 
     const run = async () => {
@@ -556,6 +425,8 @@ function App() {
       setImageLoadState(IMAGE_STATUS_IDLE);
       setImageDimensions(null);
       setImageScale(1);
+      setImagePan({ x: 0, y: 0 });
+      panStateRef.current = { x: 0, y: 0 };
       return;
     }
 
@@ -564,6 +435,8 @@ function App() {
     setImageUrl('');
     setImageDimensions(parseImageDimensionsFromItem(previewItem));
     setImageScale(1);
+    setImagePan({ x: 0, y: 0 });
+    panStateRef.current = { x: 0, y: 0 };
 
     resolveImageUrlFromItem(previewItem)
       .then((url) => {
@@ -677,7 +550,7 @@ function App() {
     });
   }, [currentRequestId, previewMode, previewItem?.id, previewItem?.item_id, previewItem?.favorite_id]);
 
-  const showImageScaleIndicatorTemporarily = () => {
+  const showImageScaleIndicatorTemporarily = useCallback(() => {
     setShowImageScaleIndicator(true);
     if (imageScaleIndicatorTimerRef.current) {
       clearTimeout(imageScaleIndicatorTimerRef.current);
@@ -686,52 +559,110 @@ function App() {
       setShowImageScaleIndicator(false);
       imageScaleIndicatorTimerRef.current = null;
     }, IMAGE_SCALE_INDICATOR_DURATION);
-  };
+  }, []);
 
   useEffect(() => {
-    if (!previewData) return;
-    let cancelled = false;
-    let inFlight = false;
-
-    const pollMousePosition = () => {
-      if (cancelled || inFlight) {
-        return;
-      }
-
-      inFlight = true;
-      invoke('get_mouse_position')
-        .then((result) => {
-          if (cancelled || !Array.isArray(result)) {
-            return;
-          }
-          const [x, y] = result;
-          setHasMousePosition(true);
-          setMousePositionPhysical((prev) => {
-            if (prev.x === x && prev.y === y) return prev;
-            return { x, y };
-          });
-        })
-        .catch(() => { })
-        .finally(() => {
-          inFlight = false;
-        });
+    const handleResize = () => {
+      setWindowSize({
+        width: typeof window !== 'undefined' ? window.innerWidth : 640,
+        height: typeof window !== 'undefined' ? window.innerHeight : 480,
+      });
     };
-
-    pollMousePosition();
-    const timer = setInterval(pollMousePosition, 16);
+    handleResize();
+    window.addEventListener('resize', handleResize);
     return () => {
-      cancelled = true;
-      clearInterval(timer);
+      window.removeEventListener('resize', handleResize);
     };
+  }, []);
+
+  // Esc 关闭预览
+  useEffect(() => {
+    if (!previewData) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        handleClosePreview();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewData]);
 
+  const handleClosePreview = useCallback(() => {
+    setPinned(false);
+    setPreviewPinned(false).catch(() => { });
+    closePreviewWindow().catch(() => { });
+  }, []);
+
+  const togglePin = useCallback(() => {
+    setPinned((prev) => {
+      const next = !prev;
+      setPreviewPinned(next).catch(() => { });
+      return next;
+    });
+  }, []);
+
+  // 图片缩放（直接滚轮），使用非被动监听以便 preventDefault
+  const handleImageWheel = useCallback((event) => {
+    event.preventDefault();
+    const delta = event.deltaY < 0 ? IMAGE_SCALE_STEP : -IMAGE_SCALE_STEP;
+    setImageScale((prev) => {
+      const next = clamp(Number((prev + delta).toFixed(2)), IMAGE_SCALE_MIN, IMAGE_SCALE_MAX);
+      if (next === IMAGE_SCALE_MIN) {
+        panStateRef.current = { x: 0, y: 0 };
+        setImagePan({ x: 0, y: 0 });
+      }
+      if (next !== prev) {
+        showImageScaleIndicatorTemporarily();
+      }
+      return next;
+    });
+  }, [showImageScaleIndicatorTemporarily]);
+
   useEffect(() => {
-    setIsVisible(false);
-    if (revealAnimationFrameRef.current) {
-      cancelAnimationFrame(revealAnimationFrameRef.current);
-      revealAnimationFrameRef.current = 0;
+    const stage = imageStageRef.current;
+    if (!stage) return undefined;
+    const listener = (event) => handleImageWheel(event);
+    stage.addEventListener('wheel', listener, { passive: false });
+    return () => {
+      stage.removeEventListener('wheel', listener);
+    };
+  }, [handleImageWheel, previewMode]);
+
+  const handleImagePointerDown = useCallback((event) => {
+    if (imageScale <= IMAGE_SCALE_MIN + 0.001) {
+      return;
     }
-  }, [currentRequestId]);
+    imageDragRef.current = { active: true, lastX: event.clientX, lastY: event.clientY };
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      /* ignore */
+    }
+  }, [imageScale]);
+
+  const handleImagePointerMove = useCallback((event) => {
+    const drag = imageDragRef.current;
+    if (!drag.active) {
+      return;
+    }
+    const dx = event.clientX - drag.lastX;
+    const dy = event.clientY - drag.lastY;
+    drag.lastX = event.clientX;
+    drag.lastY = event.clientY;
+    panStateRef.current = {
+      x: panStateRef.current.x + dx,
+      y: panStateRef.current.y + dy,
+    };
+    setImagePan({ ...panStateRef.current });
+  }, []);
+
+  const handleImagePointerUp = useCallback(() => {
+    imageDragRef.current.active = false;
+  }, []);
 
   useEffect(() => {
     if (!previewData) return;
@@ -846,222 +777,10 @@ function App() {
     };
   }, [previewData, supportedPreviewModes]);
 
-  const scaleFactor = useMemo(() => {
-    const value = Number(previewData?.scale_factor);
-    return isFiniteNumber(value) && value > 0 ? value : 1;
-  }, [previewData]);
-
-  const workAreaLogical = useMemo(() => {
-    if (!previewData) {
-      return { left: 0, top: 0, width: 0, height: 0 };
-    }
-    return {
-      left: previewData.work_area_x / scaleFactor,
-      top: previewData.work_area_y / scaleFactor,
-      width: previewData.work_area_width / scaleFactor,
-      height: previewData.work_area_height / scaleFactor,
-    };
-  }, [previewData, scaleFactor]);
-
-  const mainWindowLogical = useMemo(() => {
-    if (!previewData) {
-      return null;
-    }
-
-    const left = Number(previewData.main_window_x) / scaleFactor;
-    const top = Number(previewData.main_window_y) / scaleFactor;
-    const width = Number(previewData.main_window_width) / scaleFactor;
-    const height = Number(previewData.main_window_height) / scaleFactor;
-
-    if (![left, top, width, height].every((value) => isFiniteNumber(value)) || width <= 0 || height <= 0) {
-      return null;
-    }
-
-    return { left, top, width, height };
-  }, [previewData, scaleFactor]);
-
-  const viewportLogical = useMemo(() => {
-    const fallbackWidth = typeof window !== 'undefined' ? window.innerWidth : 0;
-    const fallbackHeight = typeof window !== 'undefined' ? window.innerHeight : 0;
-    return {
-      width: workAreaLogical.width > 0 ? workAreaLogical.width : fallbackWidth,
-      height: workAreaLogical.height > 0 ? workAreaLogical.height : fallbackHeight,
-    };
-  }, [workAreaLogical.width, workAreaLogical.height]);
-
-  const mousePositionLogical = useMemo(() => ({
-    x: mousePositionPhysical.x / scaleFactor,
-    y: mousePositionPhysical.y / scaleFactor,
-  }), [mousePositionPhysical, scaleFactor]);
-
-  const textPreviewMaxWidth = useMemo(() => {
-    const availableWidth = resolvePreviewDirectionalAvailableWidth(
-      workAreaLogical,
-      mainWindowLogical,
-      mousePositionLogical,
-      TEXT_MIN_WIDTH,
-    );
-
-    return resolveTextPreviewMaxWidth(
-      workAreaLogical.height,
-      workAreaLogical.width,
-      availableWidth,
-    );
-  }, [
-    mainWindowLogical,
-    mousePositionLogical,
-    workAreaLogical,
-  ]);
-
-  const htmlPreviewMaxWidth = useMemo(() => {
-    const availableWidth = resolvePreviewDirectionalAvailableWidth(
-      workAreaLogical,
-      mainWindowLogical,
-      mousePositionLogical,
-      HTML_MIN_WIDTH,
-    );
-
-    return resolveHtmlPreviewMaxWidth(
-      workAreaLogical.height,
-      workAreaLogical.width,
-      availableWidth,
-    );
-  }, [
-    mainWindowLogical,
-    mousePositionLogical,
-    workAreaLogical,
-  ]);
-
-  const textPreferredSize = useMemo(() => {
-    if (previewMode !== MODE_TEXT) {
-      return null;
-    }
-
-    const measuredSize = measurePlainTextPreviewSize(textContent, { maxWidth: textPreviewMaxWidth });
-    return {
-      ...measuredSize,
-      height: measuredSize.height + Math.max(0, textHeightOverflow || 0),
-    };
-  }, [previewMode, textContent, textHeightOverflow, textPreviewMaxWidth]);
-
-  const htmlPreferredSize = useMemo(() => {
-    if (previewMode !== MODE_HTML || !htmlContent) {
-      return null;
-    }
-
-    const measuredSize = measureHtmlPreviewSize(htmlContent, { maxWidth: htmlPreviewMaxWidth });
-    if (htmlMeasuredSize?.width > 0 && htmlMeasuredSize?.height > 0) {
-      return htmlMeasuredSize;
-    }
-    return {
-      ...measuredSize,
-    };
-  }, [previewMode, htmlContent, htmlMeasuredSize, htmlPreviewMaxWidth]);
-
-  const boxSize = useMemo(() => {
-    return resolveBoxSize(previewMode, workAreaLogical.height, workAreaLogical.width, {
-      textWidth: textPreferredSize?.width,
-      textHeight: textPreferredSize?.height,
-      imageWidth: imageDimensions?.width,
-      imageHeight: imageDimensions?.height,
-      htmlWidth: htmlPreferredSize?.width,
-      htmlHeight: htmlPreferredSize?.height,
-      textMaxWidth: textPreviewMaxWidth,
-      htmlMaxWidth: htmlPreviewMaxWidth,
-      fileCount: filePreviewStats.fileCount,
-      longestFileNameLength: filePreviewStats.longestNameLength,
-      longestFilePathLength: filePreviewStats.longestPathLength,
-      longestFileNameWidth: filePreviewStats.longestNameWidth,
-      longestFilePathLineWidth: filePreviewStats.longestPathLineWidth,
-    });
-  }, [
-    previewMode,
-    workAreaLogical.height,
-    workAreaLogical.width,
-    textPreferredSize,
-    textPreviewMaxWidth,
-    imageDimensions,
-    htmlPreferredSize,
-    htmlPreviewMaxWidth,
-    filePreviewStats,
-  ]);
-
-  const displaySize = useMemo(() => {
-    if (previewMode === MODE_IMAGE) {
-      return {
-        width: boxSize.width * imageScale,
-        height: boxSize.height * imageScale,
-      };
-    }
-
-    return {
-      width: boxSize.width,
-      height: boxSize.height,
-    };
-  }, [previewMode, boxSize, imageScale]);
-
-  const containerPosition = useMemo(() => {
-    if (!previewData) {
-      return { left: -99999, top: -99999 };
-    }
-
-    return chooseContainerPosition(
-      mousePositionLogical.x,
-      mousePositionLogical.y,
-      displaySize.width,
-      displaySize.height,
-      workAreaLogical,
-      mainWindowLogical,
-    );
-  }, [previewData, mousePositionLogical, displaySize, workAreaLogical, mainWindowLogical]);
-
-  const isPreviewOnLeftOfMainWindow = useMemo(() => {
-    if (!mainWindowLogical) {
-      return false;
-    }
-    return containerPosition.left + displaySize.width <= mainWindowLogical.left;
-  }, [containerPosition.left, displaySize.width, mainWindowLogical]);
-  const previewAnchorRectLogical = useMemo(() => {
-    if (!mainWindowLogical || !isValidPreviewAnchorRect(previewData?.item_rect)) {
-      return null;
-    }
-
-    return {
-      left: mainWindowLogical.left + Number(previewData.item_rect.left),
-      top: mainWindowLogical.top + Number(previewData.item_rect.top),
-      width: Number(previewData.item_rect.width),
-      height: Number(previewData.item_rect.height),
-    };
-  }, [mainWindowLogical, previewData]);
-  const visiblePreviewAnchorRectLogical = useMemo(() => {
-    if (!mainWindowLogical || !previewAnchorRectLogical) {
-      return null;
-    }
-
-    const visibleLeft = Math.max(previewAnchorRectLogical.left, mainWindowLogical.left);
-    const visibleTop = Math.max(previewAnchorRectLogical.top, mainWindowLogical.top);
-    const visibleRight = Math.min(
-      previewAnchorRectLogical.left + previewAnchorRectLogical.width,
-      mainWindowLogical.left + mainWindowLogical.width,
-    );
-    const visibleBottom = Math.min(
-      previewAnchorRectLogical.top + previewAnchorRectLogical.height,
-      mainWindowLogical.top + mainWindowLogical.height,
-    );
-    const visibleWidth = visibleRight - visibleLeft;
-    const visibleHeight = visibleBottom - visibleTop;
-
-    if (visibleWidth <= 0 || visibleHeight <= 0) {
-      return previewAnchorRectLogical;
-    }
-
-    return {
-      left: visibleLeft,
-      top: visibleTop,
-      width: visibleWidth,
-      height: visibleHeight,
-    };
-  }, [mainWindowLogical, previewAnchorRectLogical]);
+  const winW = windowSize.width;
+  const winH = windowSize.height;
+  const contentWidth = Math.max(120, winW - CONTENT_PADDING * 2);
+  const contentHeight = Math.max(80, winH - TOOLBAR_HEIGHT - CONTENT_PADDING * 2);
 
   const imageScalePercent = useMemo(() => `${Math.round(imageScale * 100)}%`, [imageScale]);
   const previewModeLabel = useMemo(() => {
@@ -1117,291 +836,19 @@ function App() {
       pointerEvents: 'none',
     };
   }, [textContainerBackgroundImageStyle]);
-  const previewHintStyle = isBackground
-    ? {
-      backgroundColor: 'var(--bg-titlebar-bg, rgb(240, 240, 240))',
-      color: 'var(--bg-titlebar-text, #333333)',
-      border: '2px solid var(--bg-titlebar-border, rgba(232, 233, 234, 0.8))',
-      backdropFilter: 'none',
-      WebkitBackdropFilter: 'none',
-      boxShadow: '0 0 5px 1px rgba(0, 0, 0, 0.3), 0 0 3px 0 rgba(0, 0, 0, 0.2)',
-    }
-    : {
-      backgroundColor: 'var(--qc-surface)',
-      border: '2px solid color-mix(in srgb, var(--qc-fg) 30%, transparent)',
-      boxShadow: '0 0 5px 1px rgba(0, 0, 0, 0.3), 0 0 3px 0 rgba(0, 0, 0, 0.2)',
-    };
-  const previewConnectorColors = useMemo(() => {
-    if (isBackground) {
-      return {
-        line: isDark
-          ? 'color-mix(in srgb, white 60%, var(--qc-border-strong) 40%)'
-          : 'color-mix(in srgb, var(--bg-titlebar-text, #333333) 72%, var(--qc-border-strong) 28%)',
-        lineGlow: isDark
-          ? 'color-mix(in srgb, white 26%, transparent)'
-          : 'color-mix(in srgb, var(--bg-titlebar-text, #333333) 18%, transparent)',
-        sourceFill: isDark
-          ? 'color-mix(in srgb, white 74%, var(--qc-border-strong) 26%)'
-          : 'var(--bg-titlebar-text, #333333)',
-        sourceStroke: 'color-mix(in srgb, var(--qc-surface) 84%, transparent)',
-        sourceHighlight: 'color-mix(in srgb, white 78%, transparent)',
-        targetFill: isDark
-          ? 'color-mix(in srgb, white 82%, var(--qc-border-strong) 18%)'
-          : 'color-mix(in srgb, var(--qc-border-strong) 82%, var(--bg-titlebar-text, #333333) 18%)',
-        targetStroke: isDark
-          ? 'color-mix(in srgb, white 65%, var(--qc-border-strong) 35%)'
-          : 'var(--qc-border-strong)',
-        targetHighlight: 'color-mix(in srgb, white 82%, transparent)',
-      };
-    }
 
-    if (isDark) {
-      return {
-        line: 'color-mix(in srgb, white 56%, var(--qc-border-strong) 44%)',
-        lineGlow: 'color-mix(in srgb, white 24%, transparent)',
-        sourceFill: 'color-mix(in srgb, white 72%, var(--qc-border-strong) 28%)',
-        sourceStroke: 'color-mix(in srgb, var(--qc-surface) 82%, transparent)',
-        sourceHighlight: 'color-mix(in srgb, white 84%, transparent)',
-        targetFill: 'color-mix(in srgb, white 78%, var(--qc-border-strong) 22%)',
-        targetStroke: 'color-mix(in srgb, white 58%, var(--qc-border-strong) 42%)',
-        targetHighlight: 'color-mix(in srgb, white 88%, transparent)',
-      };
-    }
+  const previewEntranceStyle = useMemo(() => ({
+    opacity: isVisible ? 1 : 0,
+    transform: isVisible ? 'scale(1, 1)' : 'scale(0.96, 0.96)',
+    transformOrigin: 'center center',
+    transition: [
+      'transform 160ms cubic-bezier(0.22, 1, 0.36, 1)',
+      'opacity 130ms ease-out',
+    ].join(', '),
+    willChange: 'transform, opacity',
+  }), [isVisible]);
 
-    return {
-      line: 'color-mix(in srgb, var(--qc-border-strong) 88%, var(--qc-fg) 12%)',
-      lineGlow: 'color-mix(in srgb, var(--qc-border-strong) 20%, transparent)',
-      sourceFill: 'color-mix(in srgb, var(--qc-fg) 72%, var(--qc-border-strong) 28%)',
-      sourceStroke: 'color-mix(in srgb, white 76%, var(--qc-surface) 24%)',
-      sourceHighlight: 'color-mix(in srgb, white 88%, transparent)',
-      targetFill: 'color-mix(in srgb, var(--qc-border-strong) 90%, var(--qc-fg) 10%)',
-      targetStroke: 'var(--qc-border-strong)',
-      targetHighlight: 'color-mix(in srgb, white 92%, transparent)',
-    };
-  }, [isBackground, isDark]);
-  const previewHintPrimaryStyle = useMemo(() => ({
-    ...previewHintStyle,
-    fontWeight: 600,
-    border: isBackground
-      ? '2px solid color-mix(in srgb, var(--bg-titlebar-text, #333333) 16%, transparent)'
-      : '1px solid color-mix(in srgb, var(--qc-fg) 16%, transparent)',
-    boxShadow: isBackground
-      ? '0 2px 8px rgba(0, 0, 0, 0.16)'
-      : '0 2px 10px rgba(0, 0, 0, 0.14)',
-  }), [isBackground, previewHintStyle]);
-  const previewHintSecondaryStyle = useMemo(() => ({
-    ...previewHintStyle,
-    opacity: 0.84,
-    border: isBackground
-      ? '1px solid color-mix(in srgb, var(--bg-titlebar-text, #333333) 10%, transparent)'
-      : '1px solid color-mix(in srgb, var(--qc-fg) 10%, transparent)',
-    boxShadow: '0 1px 4px rgba(0, 0, 0, 0.10)',
-  }), [isBackground, previewHintStyle]);
-  const previewHintAccentStyle = useMemo(() => ({
-    ...previewHintStyle,
-    fontWeight: 700,
-    opacity: 0.98,
-    border: isBackground
-      ? '2px solid color-mix(in srgb, var(--qc-border-strong) 42%, transparent)'
-      : '1px solid color-mix(in srgb, var(--qc-border-strong) 56%, transparent)',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.16)',
-  }), [isBackground, previewHintStyle]);
-  const previewHintVisibility = useMemo(() => {
-    const width = displaySize.width;
-    const isCompact = width < 420;
-    const isTight = width < 340;
-    const isVeryTight = width < 280;
-
-    return {
-      showFormatHint: !isCompact,
-      showSwitchHint: !isTight,
-      showActionHint: !isVeryTight,
-    };
-  }, [displaySize.width]);
-
-  const relativeLeft = clamp(
-    containerPosition.left - workAreaLogical.left,
-    0,
-    Math.max(0, viewportLogical.width - displaySize.width),
-  );
-  const relativeTop = clamp(
-    containerPosition.top - workAreaLogical.top,
-    0,
-    Math.max(0, viewportLogical.height - displaySize.height),
-  );
-  const previewHintTop = Math.max(0, relativeTop - 28);
-  const previewHintMaxWidth = Math.max(240, viewportLogical.width - 24);
-  const previewConnectorCandidate = useMemo(() => {
-    if (!visiblePreviewAnchorRectLogical) {
-      return null;
-    }
-
-    const sourceRect = {
-      left: visiblePreviewAnchorRectLogical.left - workAreaLogical.left,
-      top: visiblePreviewAnchorRectLogical.top - workAreaLogical.top,
-      width: visiblePreviewAnchorRectLogical.width,
-      height: visiblePreviewAnchorRectLogical.height,
-    };
-    const targetRect = {
-      left: relativeLeft,
-      top: relativeTop,
-      width: displaySize.width,
-      height: displaySize.height,
-    };
-
-    return resolveBestRectConnection(sourceRect, targetRect);
-  }, [
-    displaySize.height,
-    displaySize.width,
-    relativeLeft,
-    relativeTop,
-    visiblePreviewAnchorRectLogical,
-    workAreaLogical.left,
-    workAreaLogical.top,
-  ]);
-  const previewEntranceStyle = useMemo(() => {
-    const targetWidth = Math.max(1, displaySize.width);
-    const targetHeight = Math.max(1, displaySize.height);
-    const minAnchorWidth = 14;
-    const maxAnchorWidth = Math.min(24, Math.max(minAnchorWidth, Math.round(targetWidth * 0.08)));
-
-    let anchorLeft = mousePositionLogical.x - workAreaLogical.left;
-    let anchorTop = mousePositionLogical.y - workAreaLogical.top;
-    let anchorWidth = maxAnchorWidth;
-    let anchorHeight = clamp(Math.round(Math.min(targetHeight, 56)), 36, Math.max(36, targetHeight));
-    let transformOrigin = isPreviewOnLeftOfMainWindow ? 'right center' : 'left center';
-
-    if (previewConnectorCandidate && visiblePreviewAnchorRectLogical) {
-      const itemLeft = visiblePreviewAnchorRectLogical.left - workAreaLogical.left;
-      const itemTop = visiblePreviewAnchorRectLogical.top - workAreaLogical.top;
-      const itemWidth = visiblePreviewAnchorRectLogical.width;
-      const itemHeight = visiblePreviewAnchorRectLogical.height;
-      const itemCenterX = itemLeft + (itemWidth / 2);
-      const itemCenterY = itemTop + (itemHeight / 2);
-
-      if (previewConnectorCandidate.targetSide === 'left' || previewConnectorCandidate.targetSide === 'right') {
-        anchorWidth = maxAnchorWidth;
-        anchorHeight = clamp(
-          Math.round(itemHeight * 0.82),
-          36,
-          Math.max(36, Math.min(targetHeight, Math.round(itemHeight + 18))),
-        );
-        anchorLeft = previewConnectorCandidate.targetSide === 'left'
-          ? relativeLeft
-          : relativeLeft + targetWidth - anchorWidth;
-        anchorTop = previewConnectorCandidate.targetY - (anchorHeight / 2);
-        transformOrigin = previewConnectorCandidate.targetSide === 'left' ? 'left center' : 'right center';
-      } else {
-        anchorWidth = clamp(
-          Math.round(itemWidth * 0.88),
-          52,
-          Math.max(52, Math.min(targetWidth, Math.round(itemWidth + 24))),
-        );
-        anchorHeight = clamp(Math.min(24, Math.round(targetHeight * 0.09)), 14, 24);
-        anchorLeft = previewConnectorCandidate.targetX - (anchorWidth / 2);
-        anchorTop = previewConnectorCandidate.targetSide === 'top'
-          ? relativeTop
-          : relativeTop + targetHeight - anchorHeight;
-        transformOrigin = previewConnectorCandidate.targetSide === 'top' ? 'center top' : 'center bottom';
-      }
-
-      anchorLeft = Number.isFinite(anchorLeft) ? anchorLeft : itemCenterX;
-      anchorTop = Number.isFinite(anchorTop) ? anchorTop : itemCenterY;
-    } else {
-      anchorLeft = isPreviewOnLeftOfMainWindow
-        ? relativeLeft + targetWidth - anchorWidth
-        : relativeLeft;
-      anchorTop = mousePositionLogical.y - workAreaLogical.top - anchorHeight / 2;
-    }
-
-    const clampedAnchorWidth = clamp(anchorWidth, minAnchorWidth, targetWidth);
-    const clampedAnchorHeight = clamp(anchorHeight, 24, targetHeight);
-    const clampedAnchorLeft = clamp(
-      anchorLeft,
-      0,
-      Math.max(0, viewportLogical.width - clampedAnchorWidth),
-    );
-    const clampedAnchorTop = clamp(
-      anchorTop,
-      0,
-      Math.max(0, viewportLogical.height - clampedAnchorHeight),
-    );
-
-    const targetRight = relativeLeft + targetWidth;
-    const targetBottom = relativeTop + targetHeight;
-    const anchorRight = clampedAnchorLeft + clampedAnchorWidth;
-    const anchorBottom = clampedAnchorTop + clampedAnchorHeight;
-    const targetCenterX = relativeLeft + targetWidth / 2;
-    const targetCenterY = relativeTop + targetHeight / 2;
-    const anchorCenterX = clampedAnchorLeft + clampedAnchorWidth / 2;
-    const anchorCenterY = clampedAnchorTop + clampedAnchorHeight / 2;
-    let startTranslateX = isPreviewOnLeftOfMainWindow
-      ? anchorRight - targetRight
-      : clampedAnchorLeft - relativeLeft;
-    let startTranslateY = anchorCenterY - targetCenterY;
-
-    if (previewConnectorCandidate?.targetSide === 'right') {
-      startTranslateX = anchorRight - targetRight;
-    } else if (previewConnectorCandidate?.targetSide === 'left') {
-      startTranslateX = clampedAnchorLeft - relativeLeft;
-    } else if (previewConnectorCandidate?.targetSide === 'top') {
-      startTranslateX = anchorCenterX - targetCenterX;
-      startTranslateY = clampedAnchorTop - relativeTop;
-    } else if (previewConnectorCandidate?.targetSide === 'bottom') {
-      startTranslateX = anchorCenterX - targetCenterX;
-      startTranslateY = anchorBottom - targetBottom;
-    }
-
-    const startScaleX = clamp(clampedAnchorWidth / targetWidth, 0.08, 1);
-    const startScaleY = clamp(clampedAnchorHeight / targetHeight, 0.12, 1);
-
-    return {
-      opacity: isVisible ? 1 : 0,
-      transform: isVisible
-        ? 'translate(0px, 0px) scale(1, 1)'
-        : `translate(${startTranslateX}px, ${startTranslateY}px) scale(${startScaleX}, ${startScaleY})`,
-      transformOrigin,
-      transition: [
-        'transform 190ms cubic-bezier(0.22, 1, 0.36, 1)',
-        'opacity 130ms ease-out',
-      ].join(', '),
-      willChange: 'transform, opacity',
-    };
-  }, [
-    displaySize.height,
-    displaySize.width,
-    isPreviewOnLeftOfMainWindow,
-    isVisible,
-    mousePositionLogical.x,
-    mousePositionLogical.y,
-    previewConnectorCandidate,
-    relativeLeft,
-    relativeTop,
-    visiblePreviewAnchorRectLogical,
-    viewportLogical.height,
-    viewportLogical.width,
-    workAreaLogical.left,
-    workAreaLogical.top,
-  ]);
-  const previewConnectorData = useMemo(() => {
-    if (!previewConnectorCandidate) {
-      return null;
-    }
-
-    return {
-      connectorPath: previewConnectorCandidate.connectorPath,
-      sourceX: previewConnectorCandidate.sourceX,
-      sourceY: previewConnectorCandidate.sourceY,
-      targetX: previewConnectorCandidate.targetX,
-      targetY: previewConnectorCandidate.targetY,
-      endpointRadius: 3.5,
-      strokeWidth: 2.25,
-    };
-  }, [
-    previewConnectorCandidate,
-  ]);
-
-  if (!previewData || !hasMousePosition) {
+  if (!previewData) {
     return (
       <div className="preview-container fixed inset-0 overflow-hidden bg-transparent">
         <div
@@ -1412,339 +859,252 @@ function App() {
     );
   }
 
-  const renderPrimaryPreviewHint = (content) => (
-    <PreviewHint className="preview-hint-primary tracking-[0.01em]" style={previewHintPrimaryStyle}>
-      {content}
-    </PreviewHint>
-  );
-  const renderSecondaryPreviewHint = (content) => (
-    <PreviewHint className="preview-hint-secondary text-[10.5px]" style={previewHintSecondaryStyle}>
-      {content}
-    </PreviewHint>
-  );
-  const renderAccentPreviewHint = (content) => (
-    <PreviewHint className="preview-hint-accent tracking-[0.01em]" style={previewHintAccentStyle}>
-      {content}
-    </PreviewHint>
-  );
-  const renderPreviewHint = () => {
-    const showSwitchHint = supportedPreviewModes.length > 1 && previewHintVisibility.showSwitchHint;
-    const formatHintNode = formatHintText && previewHintVisibility.showFormatHint
-      ? renderSecondaryPreviewHint(t('previewWindow.formatsHint', { formats: formatHintText }))
-      : null;
-    const switchHintNode = showSwitchHint
-      ? renderSecondaryPreviewHint(t('previewWindow.switchFormatHint'))
-      : null;
-    const showTextScrollHint = previewHintVisibility.showActionHint && scrollability.text;
-    const showHtmlScrollHint = previewHintVisibility.showActionHint && scrollability.html;
-    const showFileScrollHint = previewHintVisibility.showActionHint && scrollability.file;
-
-    if (previewMode === MODE_IMAGE) {
-      return (
-        <div className="flex items-center gap-2">
-          {renderPrimaryPreviewHint(t('previewWindow.currentFormatHint', { format: previewModeLabel }))}
-          {formatHintNode}
-          {switchHintNode}
-          {previewHintVisibility.showActionHint && renderSecondaryPreviewHint(t('previewWindow.imageHint'))}
-          {showImageScaleIndicator && (
-            renderAccentPreviewHint(imageScalePercent)
-          )}
-        </div>
-      );
-    }
-
-    if (previewMode === MODE_FILE) {
-      return (
-        <div className="flex items-center gap-2">
-          {renderPrimaryPreviewHint(t('previewWindow.currentFormatHint', { format: previewModeLabel }))}
-          {formatHintNode}
-          {switchHintNode}
-          {showFileScrollHint && renderSecondaryPreviewHint(t('previewWindow.fileHint', 'Ctrl+滚轮，滚动文件列表'))}
-        </div>
-      );
-    }
-
-    if (previewMode === MODE_HTML) {
-      return (
-        <div className="flex items-center gap-2">
-          {renderPrimaryPreviewHint(t('previewWindow.currentFormatHint', { format: previewModeLabel }))}
-          {formatHintNode}
-          {switchHintNode}
-          {showHtmlScrollHint && renderSecondaryPreviewHint(t('previewWindow.textHint'))}
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex items-center gap-2">
-        {renderPrimaryPreviewHint(t('previewWindow.currentFormatHint', { format: previewModeLabel }))}
-        {formatHintNode}
-        {switchHintNode}
-        {showTextScrollHint && renderSecondaryPreviewHint(t('previewWindow.textHint'))}
-      </div>
-    );
-  };
-
   return (
     <div className={`preview-container fixed inset-0 overflow-hidden bg-transparent ${isDark ? 'dark' : ''}`}>
+      <style>{`
+        .preview-toolbar-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 26px;
+          height: 22px;
+          padding: 0 8px;
+          border-radius: 6px;
+          border: 1px solid color-mix(in srgb, var(--qc-fg) 16%, transparent);
+          background: color-mix(in srgb, var(--qc-surface) 80%, transparent);
+          font-size: 11px;
+          line-height: 1;
+          cursor: pointer;
+          transition: background 120ms ease, border-color 120ms ease;
+        }
+        .preview-toolbar-btn:hover {
+          background: color-mix(in srgb, var(--qc-hover, #000) 14%, transparent);
+          border-color: color-mix(in srgb, var(--qc-fg) 32%, transparent);
+        }
+      `}</style>
       <div
         className="preview-theme-anchor pointer-events-none absolute opacity-0"
         style={{ width: 0, height: 0, overflow: 'hidden' }}
       />
       <div
-        className="absolute z-20 pointer-events-none"
+        className="preview-card absolute"
         style={{
-          left: isPreviewOnLeftOfMainWindow ? 'auto' : `${relativeLeft}px`,
-          right: isPreviewOnLeftOfMainWindow
-            ? `${Math.max(0, viewportLogical.width - relativeLeft - displaySize.width)}px`
-            : 'auto',
-          top: `${previewHintTop}px`,
-          maxWidth: `${previewHintMaxWidth}px`,
-          opacity: isVisible ? 1 : 0,
-          transition: 'opacity 120ms ease-out',
+          inset: 0,
+          borderRadius: '12px',
+          border: '1px solid color-mix(in srgb, var(--qc-fg) 28%, transparent)',
+          boxShadow: '0 8px 28px rgba(0, 0, 0, 0.30), 0 0 0 1px rgba(0, 0, 0, 0.04)',
+          backgroundColor: textContainerBackgroundColor,
+          overflow: 'hidden',
+          ...previewEntranceStyle,
         }}
       >
-        <div className={`flex ${isPreviewOnLeftOfMainWindow ? 'justify-end' : 'justify-start'}`}>
-          {renderPreviewHint()}
-        </div>
-      </div>
+        {blurredBackgroundLayerStyle && <div style={blurredBackgroundLayerStyle} />}
 
-      {previewConnectorData && (
-        <svg
-          className="absolute inset-0 z-10 pointer-events-none overflow-visible"
-          width={viewportLogical.width}
-          height={viewportLogical.height}
-          viewBox={`0 0 ${viewportLogical.width} ${viewportLogical.height}`}
-          style={{
-            opacity: isVisible ? 1 : 0,
-            transition: 'opacity 140ms ease-out',
-            filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.12))',
-          }}
-        >
-          <path
-            d={previewConnectorData.connectorPath}
-            fill="none"
-            stroke={previewConnectorColors.lineGlow}
-            strokeWidth={previewConnectorData.strokeWidth + 1.1}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.55"
-          />
-          <path
-            d={previewConnectorData.connectorPath}
-            fill="none"
-            stroke="color-mix(in srgb, white 28%, transparent)"
-            strokeWidth={previewConnectorData.strokeWidth + 0.3}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.22"
-          />
-          <path
-            d={previewConnectorData.connectorPath}
-            fill="none"
-            stroke={previewConnectorColors.line}
-            strokeWidth={previewConnectorData.strokeWidth}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <circle
-            cx={previewConnectorData.sourceX}
-            cy={previewConnectorData.sourceY}
-            r={previewConnectorData.endpointRadius + 1.2}
-            fill={previewConnectorColors.lineGlow}
-            opacity="0.62"
-          />
-          <circle
-            cx={previewConnectorData.sourceX}
-            cy={previewConnectorData.sourceY}
-            r={previewConnectorData.endpointRadius}
-            fill={previewConnectorColors.sourceFill}
-            stroke={previewConnectorColors.sourceStroke}
-            strokeWidth="1"
-          />
-          <circle
-            cx={previewConnectorData.sourceX - 0.8}
-            cy={previewConnectorData.sourceY - 0.8}
-            r={Math.max(1.1, previewConnectorData.endpointRadius * 0.42)}
-            fill={previewConnectorColors.sourceHighlight}
-            opacity="0.78"
-          />
-          <circle
-            cx={previewConnectorData.targetX}
-            cy={previewConnectorData.targetY}
-            r={previewConnectorData.endpointRadius + 1.2}
-            fill={previewConnectorColors.lineGlow}
-            opacity="0.66"
-          />
-          <circle
-            cx={previewConnectorData.targetX}
-            cy={previewConnectorData.targetY}
-            r={previewConnectorData.endpointRadius}
-            fill={previewConnectorColors.targetFill}
-            stroke={previewConnectorColors.targetStroke}
-            strokeWidth="0.5"
-          />
-          <circle
-            cx={previewConnectorData.targetX - 0.8}
-            cy={previewConnectorData.targetY - 0.8}
-            r={Math.max(1.1, previewConnectorData.endpointRadius * 0.42)}
-            fill={previewConnectorColors.targetHighlight}
-            opacity="0.82"
-          />
-        </svg>
-      )}
-
-      {(previewMode === MODE_TEXT || previewMode === MODE_HTML) && (
+        {/* 顶部信息 + 工具栏 */}
         <div
-          className="absolute overflow-visible"
-          style={{
-            width: `${boxSize.width}px`,
-            height: `${boxSize.height}px`,
-            left: `${relativeLeft}px`,
-            top: `${relativeTop}px`,
-            ...previewEntranceStyle,
-          }}
+          className="absolute left-0 right-0 flex items-center justify-between"
+          style={{ top: 0, height: TOOLBAR_HEIGHT, padding: '0 10px', zIndex: 30 }}
         >
           <div
-            className="preview-surface preview-text-surface relative z-10 w-full h-full border border-qc-border-strong overflow-hidden"
-            style={{
-              borderRadius: '8px',
-              boxSizing: 'border-box',
-              backgroundColor: textContainerBackgroundColor,
-              boxShadow: '0 0 5px 1px rgba(0, 0, 0, 0.3), 0 0 3px 0 rgba(0, 0, 0, 0.2)',
-            }}
+            className="truncate text-[11px] font-medium"
+            style={{ color: 'var(--qc-fg-muted)' }}
           >
-            {blurredBackgroundLayerStyle && <div style={blurredBackgroundLayerStyle} />}
-            <div className="relative z-10 w-full h-full overflow-hidden">
-              {previewMode === MODE_HTML ? (
-                <HtmlPreview
-                  key={currentRequestId}
-                  ref={htmlPreviewRef}
-                  htmlContent={htmlContent}
-                  maxWidth={htmlPreviewMaxWidth}
-                  maxHeight={resolveTextPreviewMaxHeight(workAreaLogical.height)}
-                  onPreferredSizeChange={(nextSize) => {
-                    const nextWidth = Number(nextSize?.width);
-                    const nextHeight = Number(nextSize?.height);
-                    if (
-                      !isFiniteNumber(nextWidth)
-                      || !isFiniteNumber(nextHeight)
-                      || nextWidth <= 0
-                      || nextHeight <= 0
-                    ) {
-                      return;
-                    }
-                    setHtmlMeasuredSize((current) => (
-                      current?.width === nextWidth && current?.height === nextHeight
+            {previewModeLabel}
+            {formatHintText ? ` · ${formatHintText}` : ''}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={togglePin}
+              title={pinned ? t('previewWindow.pinned', '已固定') : t('previewWindow.pin', '固定')}
+              className="preview-toolbar-btn"
+              style={{
+                color: pinned ? 'var(--qc-active, #2b7fff)' : 'var(--qc-fg-muted)',
+                fontWeight: pinned ? 700 : 500,
+              }}
+            >
+              {pinned ? t('previewWindow.pinned', '已固定') : t('previewWindow.pin', '固定')}
+            </button>
+            <button
+              type="button"
+              onClick={handleClosePreview}
+              title={t('previewWindow.close', '关闭预览')}
+              className="preview-toolbar-btn"
+              aria-label={t('previewWindow.close', '关闭预览')}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* 内容区 */}
+        <div
+          className="absolute"
+          style={{
+            top: TOOLBAR_HEIGHT,
+            left: CONTENT_PADDING,
+            right: CONTENT_PADDING,
+            bottom: CONTENT_PADDING,
+            overflow: 'hidden',
+          }}
+        >
+          {(previewMode === MODE_TEXT || previewMode === MODE_HTML) && (
+            <div
+              className="preview-surface preview-text-surface relative z-10 w-full h-full border border-qc-border-strong overflow-hidden"
+              style={{
+                borderRadius: '8px',
+                boxSizing: 'border-box',
+                backgroundColor: textContainerBackgroundColor,
+                boxShadow: '0 0 5px 1px rgba(0, 0, 0, 0.2)',
+              }}
+            >
+              {blurredBackgroundLayerStyle && <div style={blurredBackgroundLayerStyle} />}
+              <div className="relative z-10 w-full h-full overflow-hidden">
+                {previewMode === MODE_HTML ? (
+                  <HtmlPreview
+                    key={currentRequestId}
+                    ref={htmlPreviewRef}
+                    htmlContent={htmlContent}
+                    maxWidth={contentWidth}
+                    maxHeight={contentHeight}
+                    onPreferredSizeChange={(nextSize) => {
+                      const nextWidth = Number(nextSize?.width);
+                      const nextHeight = Number(nextSize?.height);
+                      if (
+                        !isFiniteNumber(nextWidth)
+                        || !isFiniteNumber(nextHeight)
+                        || nextWidth <= 0
+                        || nextHeight <= 0
+                      ) {
+                        return;
+                      }
+                      setHtmlMeasuredSize((current) => (
+                        current?.width === nextWidth && current?.height === nextHeight
+                          ? current
+                          : { width: nextWidth, height: nextHeight }
+                      ));
+                    }}
+                    onScrollabilityChange={(nextValue) => {
+                      setScrollability((current) => (current.html === nextValue
                         ? current
-                        : { width: nextWidth, height: nextHeight }
-                    ));
-                  }}
+                        : { ...current, html: nextValue }));
+                    }}
+                  />
+                ) : (
+                  <TextPreview
+                    ref={textPreviewRef}
+                    content={textContent}
+                    isDark={isDark}
+                    isBackground={isBackground}
+                    onHeightOverflowChange={(nextOverflow) => {
+                      const overflow = Number(nextOverflow);
+                      if (!isFiniteNumber(overflow) || overflow < 0) {
+                        return;
+                      }
+                      setTextHeightOverflow((current) => Math.max(current, overflow));
+                    }}
+                    onScrollabilityChange={(nextValue) => {
+                      setScrollability((current) => (current.text === nextValue
+                        ? current
+                        : { ...current, text: nextValue }));
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {previewMode === MODE_FILE && (
+            <div
+              className="preview-surface preview-file-surface relative z-10 w-full h-full border border-qc-border-strong overflow-hidden"
+              style={{
+                borderRadius: '8px',
+                backgroundColor: textContainerBackgroundColor,
+                boxShadow: '0 0 5px 1px rgba(0, 0, 0, 0.2)',
+              }}
+            >
+              {blurredBackgroundLayerStyle && <div style={blurredBackgroundLayerStyle} />}
+              <div className="relative z-10 w-full h-full overflow-hidden">
+                <FilePreview
+                  ref={filePreviewRef}
+                  files={filePreviewFiles}
+                  stats={filePreviewStats}
+                  t={t}
                   onScrollabilityChange={(nextValue) => {
-                    setScrollability((current) => (current.html === nextValue
+                    setScrollability((current) => (current.file === nextValue
                       ? current
-                      : { ...current, html: nextValue }));
+                      : { ...current, file: nextValue }));
                   }}
                 />
-              ) : (
-                <TextPreview
-                  ref={textPreviewRef}
-                  content={textContent}
-                  isDark={isDark}
-                  isBackground={isBackground}
-                  onHeightOverflowChange={(nextOverflow) => {
-                    const overflow = Number(nextOverflow);
-                    if (!isFiniteNumber(overflow) || overflow < 0) {
-                      return;
+              </div>
+            </div>
+          )}
+
+          {previewMode === MODE_IMAGE && (
+            <div
+              ref={imageStageRef}
+              className="relative z-10 w-full h-full overflow-hidden select-none"
+              style={{
+                borderRadius: '8px',
+                cursor: imageScale > IMAGE_SCALE_MIN + 0.001 ? 'grab' : 'default',
+                backgroundColor: 'rgba(0,0,0,0.02)',
+                boxShadow: '0 0 5px 1px rgba(0, 0, 0, 0.2)',
+                border: '1px solid var(--qc-border-strong)',
+              }}
+              onPointerDown={handleImagePointerDown}
+              onPointerMove={handleImagePointerMove}
+              onPointerUp={handleImagePointerUp}
+              onPointerLeave={handleImagePointerUp}
+            >
+              <div
+                className="absolute left-1/2 top-1/2"
+                style={{
+                  width: `${contentWidth}px`,
+                  height: `${contentHeight}px`,
+                  marginLeft: `${-contentWidth / 2}px`,
+                  marginTop: `${-contentHeight / 2}px`,
+                  transform: `translate(${imagePan.x}px, ${imagePan.y}px) scale(${imageScale})`,
+                  transformOrigin: 'center center',
+                }}
+              >
+                <ImagePreview
+                  imageUrl={imageUrl}
+                  imageLoadState={imageLoadState}
+                  onLoad={(event) => {
+                    const { naturalWidth, naturalHeight } = event.currentTarget;
+                    if (naturalWidth > 0 && naturalHeight > 0) {
+                      setImageDimensions({ width: naturalWidth, height: naturalHeight });
                     }
-                    setTextHeightOverflow((current) => Math.max(current, overflow));
+                    setImageLoadState(IMAGE_STATUS_READY);
                   }}
-                  onScrollabilityChange={(nextValue) => {
-                    setScrollability((current) => (current.text === nextValue
-                      ? current
-                      : { ...current, text: nextValue }));
+                  onError={() => {
+                    setImageLoadState(IMAGE_STATUS_ERROR);
                   }}
                 />
+              </div>
+
+              {showImageScaleIndicator && (
+                <div
+                  className="absolute"
+                  style={{
+                    right: 10,
+                    bottom: 10,
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#fff',
+                    background: 'rgba(0,0,0,0.55)',
+                    zIndex: 40,
+                  }}
+                >
+                  {imageScalePercent}
+                </div>
               )}
             </div>
-          </div>
+          )}
         </div>
-      )}
-
-      {previewMode === MODE_FILE && (
-        <div
-          className="absolute overflow-visible"
-          style={{
-            width: `${boxSize.width}px`,
-            height: `${boxSize.height}px`,
-            left: `${relativeLeft}px`,
-            top: `${relativeTop}px`,
-            ...previewEntranceStyle,
-          }}
-        >
-          <div
-            className="preview-surface preview-file-surface relative z-10 w-full h-full border border-qc-border-strong overflow-hidden"
-            style={{
-              borderRadius: '8px',
-              backgroundColor: textContainerBackgroundColor,
-              boxShadow: '0 0 5px 1px rgba(0, 0, 0, 0.3), 0 0 3px 0 rgba(0, 0, 0, 0.2)',
-            }}
-          >
-            {blurredBackgroundLayerStyle && <div style={blurredBackgroundLayerStyle} />}
-            <div className="relative z-10 w-full h-full overflow-hidden">
-              <FilePreview
-                ref={filePreviewRef}
-                files={filePreviewFiles}
-                stats={filePreviewStats}
-                t={t}
-                onScrollabilityChange={(nextValue) => {
-                  setScrollability((current) => (current.file === nextValue
-                    ? current
-                    : { ...current, file: nextValue }));
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {previewMode === MODE_IMAGE && (
-        <div
-          className="absolute overflow-visible pointer-events-none"
-          style={{
-            width: `${displaySize.width}px`,
-            height: `${displaySize.height}px`,
-            left: `${relativeLeft}px`,
-            top: `${relativeTop}px`,
-            ...previewEntranceStyle,
-          }}
-        >
-          <div
-            className="preview-image-stage relative z-10 overflow-visible"
-            style={{
-              width: `${boxSize.width}px`,
-              height: `${boxSize.height}px`,
-              transform: `scale(${imageScale})`,
-              transformOrigin: 'left top',
-            }}
-          >
-            <ImagePreview
-              imageUrl={imageUrl}
-              imageLoadState={imageLoadState}
-              onLoad={(event) => {
-                const { naturalWidth, naturalHeight } = event.currentTarget;
-                if (naturalWidth > 0 && naturalHeight > 0) {
-                  setImageDimensions({ width: naturalWidth, height: naturalHeight });
-                }
-                setImageLoadState(IMAGE_STATUS_READY);
-              }}
-              onError={() => {
-                setImageLoadState(IMAGE_STATUS_ERROR);
-              }}
-            />
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
