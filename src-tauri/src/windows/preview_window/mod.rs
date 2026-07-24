@@ -209,6 +209,7 @@ fn create_preview_window(
 }
 
 #[tauri::command]
+// 调试：增加悬浮窗日志
 pub async fn show_preview_window(
     app: AppHandle,
     mode: String,
