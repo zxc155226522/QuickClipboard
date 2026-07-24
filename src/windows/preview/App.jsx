@@ -251,7 +251,7 @@ function App() {
         settingsStore.saveSettings({
           previewWindowWidth: nextWidth,
           previewWindowHeight: nextHeight,
-        }).catch(() => { });
+        }, { showToast: false }).catch(() => { });
       }, 250);
     });
     return () => {

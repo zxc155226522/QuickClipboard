@@ -127,7 +127,7 @@ export default function PreviewResizeHandles() {
         settingsStore.saveSettings({
           previewWindowWidth: logicalWidth,
           previewWindowHeight: logicalHeight,
-        }).catch(() => {});
+        }, { showToast: false }).catch(() => {});
       } catch (err) {
         console.error('保存预览窗口大小失败:', err);
       }
