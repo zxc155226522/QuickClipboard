@@ -3,11 +3,13 @@ import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { listen } from '@tauri-apps/api/event';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useSnapshot } from 'valtio';
 import { defaultSettings } from '@shared/services/settingsService';
 import { settingsStore, initSettings } from '@shared/store/settingsStore';
 import { useTheme, applyThemeToBody } from '@shared/hooks/useTheme';
 import { useSettingsSync } from '@shared/hooks/useSettingsSync';
+import { useWindowDrag } from '@shared/hooks/useWindowDrag';
 import {
   applyBackgroundImage,
   clearBackgroundImage,
@@ -55,6 +57,7 @@ import {
   parseImageDimensionsFromItem,
 } from './utils';
 import { closePreviewWindow, setPreviewPinned } from '@shared/api/previewWindow';
+import PreviewResizeHandles from './components/PreviewResizeHandles';
 
 const IMAGE_FILE_EXTENSION_PATTERN = /\.(png|jpe?g|gif|webp|bmp|svg|ico|tiff?|avif)$/i;
 
@@ -220,6 +223,44 @@ function App() {
   const { theme, lightThemeStyle, darkThemeStyle, backgroundImagePath } = settings;
   const { effectiveTheme, isDark, isBackground } = useTheme();
   useSettingsSync();
+
+  // 顶部工具栏作为可拖拽区(标题栏),移动整个预览窗口。
+  // pin / ✕ 是 <button>,已在排除列表内,点击它们不会触发拖动。
+  const toolbarDragRef = useWindowDrag({
+    excludeSelectors: ['button', '[data-no-drag]', 'input', 'textarea'],
+    allowChildren: true,
+  });
+
+  // 监听窗口尺寸变化：拖拽改大小后同步布局，并持久化到设置（主窗下次悬停沿用）
+  useEffect(() => {
+    let saveTimer = null;
+    const unlistenPromise = getCurrentWindow().listen('resize', () => {
+      const nextWidth = Math.round(window.innerWidth);
+      const nextHeight = Math.round(window.innerHeight);
+      setWindowSize({ width: nextWidth, height: nextHeight });
+      if (
+        nextWidth === settingsStore.previewWindowWidth
+        && nextHeight === settingsStore.previewWindowHeight
+      ) {
+        return;
+      }
+      if (saveTimer) {
+        clearTimeout(saveTimer);
+      }
+      saveTimer = setTimeout(() => {
+        settingsStore.saveSettings({
+          previewWindowWidth: nextWidth,
+          previewWindowHeight: nextHeight,
+        }).catch(() => { });
+      }, 250);
+    });
+    return () => {
+      if (saveTimer) {
+        clearTimeout(saveTimer);
+      }
+      unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, []);
 
   const resetPreviewState = () => {
     revealedRequestIdRef.current = 0;
@@ -861,27 +902,6 @@ function App() {
 
   return (
     <div className={`preview-container fixed inset-0 overflow-hidden bg-transparent ${isDark ? 'dark' : ''}`}>
-      <style>{`
-        .preview-toolbar-btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-width: 26px;
-          height: 22px;
-          padding: 0 8px;
-          border-radius: 6px;
-          border: 1px solid color-mix(in srgb, var(--qc-fg) 16%, transparent);
-          background: color-mix(in srgb, var(--qc-surface) 80%, transparent);
-          font-size: 11px;
-          line-height: 1;
-          cursor: pointer;
-          transition: background 120ms ease, border-color 120ms ease;
-        }
-        .preview-toolbar-btn:hover {
-          background: color-mix(in srgb, var(--qc-hover, #000) 14%, transparent);
-          border-color: color-mix(in srgb, var(--qc-fg) 32%, transparent);
-        }
-      `}</style>
       <div
         className="preview-theme-anchor pointer-events-none absolute opacity-0"
         style={{ width: 0, height: 0, overflow: 'hidden' }}
@@ -902,8 +922,9 @@ function App() {
 
         {/* 顶部信息 + 工具栏 */}
         <div
-          className="absolute left-0 right-0 flex items-center justify-between"
-          style={{ top: 0, height: TOOLBAR_HEIGHT, padding: '0 10px', zIndex: 30 }}
+          ref={toolbarDragRef}
+          className="absolute left-0 right-0 flex items-center justify-between select-none"
+          style={{ top: 0, height: TOOLBAR_HEIGHT, padding: '0 10px', zIndex: 30, cursor: 'move' }}
         >
           <div
             className="truncate text-[11px] font-medium"
@@ -912,30 +933,32 @@ function App() {
             {previewModeLabel}
             {formatHintText ? ` · ${formatHintText}` : ''}
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={togglePin}
+              aria-label={pinned ? t('previewWindow.pinned', '已固定') : t('previewWindow.pin', '固定')}
               title={pinned ? t('previewWindow.pinned', '已固定') : t('previewWindow.pin', '固定')}
-              className="preview-toolbar-btn"
-              style={{
-                color: pinned ? 'var(--qc-active, #2b7fff)' : 'var(--qc-fg-muted)',
-                fontWeight: pinned ? 700 : 500,
-              }}
+              className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-200 ${
+                pinned
+                  ? 'bg-[var(--qc-accent)] text-[var(--qc-accent-fg)]'
+                  : 'hover:bg-qc-hover text-qc-fg-muted'
+              }`}
             >
-              {pinned ? t('previewWindow.pinned', '已固定') : t('previewWindow.pin', '固定')}
+              <i className="ti ti-pin" style={{ fontSize: 16 }} data-stroke="1.5"></i>
             </button>
             <button
               type="button"
               onClick={handleClosePreview}
-              title={t('previewWindow.close', '关闭预览')}
-              className="preview-toolbar-btn"
               aria-label={t('previewWindow.close', '关闭预览')}
+              title={t('previewWindow.close', '关闭预览')}
+              className="w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-200 hover:bg-qc-hover text-qc-fg-muted"
             >
-              ✕
+              <i className="ti ti-x" style={{ fontSize: 16 }} data-stroke="1.5"></i>
             </button>
           </div>
         </div>
+        <PreviewResizeHandles />
 
         {/* 内容区 */}
         <div

@@ -247,7 +247,7 @@ fn create_preview_window(
     .title("预览窗口")
     .inner_size(logical_width, logical_height)
     .position(logical_x, logical_y)
-    .resizable(false)
+    .resizable(true)
     .maximizable(false)
     .minimizable(false)
     .decorations(false)
@@ -312,6 +312,8 @@ pub async fn show_preview_window(
             .and_then(|window| crate::get_window_bounds(&window).ok())
             .unwrap_or((0, 0, 0, 0));
 
+    // 前端传入的尺寸为逻辑像素(CSS px,与设置面板 / 窗口 innerWidth 一致),
+    // 但本窗口定位与 set_size 均使用物理像素,这里统一换算为物理像素。
     let requested_width = preview_width
         .unwrap_or(0)
         .clamp(PREVIEW_WINDOW_MIN_WIDTH, PREVIEW_WINDOW_MAX_WIDTH);
@@ -319,14 +321,14 @@ pub async fn show_preview_window(
         .unwrap_or(0)
         .clamp(PREVIEW_WINDOW_MIN_HEIGHT, PREVIEW_WINDOW_MAX_HEIGHT);
     let width = if requested_width > 0 {
-        requested_width
+        (requested_width as f64 * scale_factor).round() as u32
     } else {
-        PREVIEW_WINDOW_DEFAULT_WIDTH
+        (PREVIEW_WINDOW_DEFAULT_WIDTH as f64 * scale_factor).round() as u32
     };
     let height = if requested_height > 0 {
-        requested_height
+        (requested_height as f64 * scale_factor).round() as u32
     } else {
-        PREVIEW_WINDOW_DEFAULT_HEIGHT
+        (PREVIEW_WINDOW_DEFAULT_HEIGHT as f64 * scale_factor).round() as u32
     };
 
     let main_window_opt = if main_window_width > 0 && main_window_height > 0 {
