@@ -1257,6 +1257,7 @@ function App() {
     Math.max(0, viewportLogical.height - displaySize.height),
   );
 
+  // 备份：修复悬浮窗无法显示问题
   const boxBoundsRef = useRef(null);
   useEffect(() => {
     boxBoundsRef.current = {
