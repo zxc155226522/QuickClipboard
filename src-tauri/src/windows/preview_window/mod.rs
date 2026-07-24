@@ -247,7 +247,7 @@ fn create_preview_window(
     .title("预览窗口")
     .inner_size(logical_width, logical_height)
     .position(logical_x, logical_y)
-    .resizable(true)
+    .resizable(false)
     .maximizable(false)
     .minimizable(false)
     .decorations(false)
