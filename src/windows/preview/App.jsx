@@ -717,7 +717,7 @@ function App() {
           });
 
           const bounds = boxBoundsRef.current;
-          if (bounds) {
+          if (bounds && bounds.isVisible) {
             const cursorRelX = x / bounds.scaleFactor - bounds.workAreaLeft;
             const cursorRelY = y / bounds.scaleFactor - bounds.workAreaTop;
 
@@ -738,6 +738,11 @@ function App() {
                 isIgnoringCursorRef.current = true;
                 invoke('set_preview_window_ignore_cursor', { ignore: true }).catch(() => { });
               }
+            }
+          } else {
+            if (!isIgnoringCursorRef.current) {
+              isIgnoringCursorRef.current = true;
+              invoke('set_preview_window_ignore_cursor', { ignore: true }).catch(() => { });
             }
           }
         })
@@ -1257,7 +1262,6 @@ function App() {
     Math.max(0, viewportLogical.height - displaySize.height),
   );
 
-  // 备份：修复悬浮窗无法显示问题
   const boxBoundsRef = useRef(null);
   useEffect(() => {
     boxBoundsRef.current = {
@@ -1269,8 +1273,9 @@ function App() {
       width: displaySize.width,
       height: displaySize.height,
       currentRequestId,
+      isVisible,
     };
-  }, [scaleFactor, workAreaLogical.left, workAreaLogical.top, relativeLeft, relativeTop, displaySize.width, displaySize.height, currentRequestId]);
+  }, [scaleFactor, workAreaLogical.left, workAreaLogical.top, relativeLeft, relativeTop, displaySize.width, displaySize.height, currentRequestId, isVisible]);
   const previewHintTop = Math.max(0, relativeTop - 28);
   const previewHintMaxWidth = Math.max(240, viewportLogical.width - 24);
   const previewConnectorCandidate = useMemo(() => {
