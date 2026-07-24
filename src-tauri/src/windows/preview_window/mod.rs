@@ -217,24 +217,30 @@ pub async fn show_preview_window(
     item_id: String,
     item_rect: Option<PreviewAnchorRect>,
 ) -> Result<(), String> {
+    println!("[PREVIEW_DEBUG] show_preview_window: mode={}, source={}, item_id={}", mode, source, item_id);
+
     if PREVIEW_SUPPRESSED.load(Ordering::SeqCst) {
+        println!("[PREVIEW_DEBUG] show_preview_window: suppressed");
         return Ok(());
     }
 
     if crate::is_context_menu_visible() {
+        println!("[PREVIEW_DEBUG] show_preview_window: context menu visible");
         return Ok(());
     }
 
     let window_state = crate::get_window_state();
     if window_state.state != crate::WindowState::Visible {
-        eprintln!(
-            "主窗口当前未处于可见状态，忽略预览窗口创建请求（state: {:?}, snapped: {}, hidden: {}）",
+        println!(
+            "[PREVIEW_DEBUG] show_preview_window: main window not visible (state: {:?}, snapped: {}, hidden: {})",
             window_state.state,
             window_state.is_snapped,
             window_state.is_hidden,
         );
         return Ok(());
     }
+
+    println!("[PREVIEW_DEBUG] show_preview_window: upserting data");
 
     let request_id = PREVIEW_REQUEST_VERSION.fetch_add(1, Ordering::SeqCst) + 1;
     PREVIEW_DESTROY_TIMER_VERSION.fetch_add(1, Ordering::SeqCst);
@@ -449,6 +455,7 @@ pub fn force_close_preview_window(app: &AppHandle) {
 
 #[tauri::command]
 pub fn reveal_preview_window(app: AppHandle, request_id: u64) -> Result<(), String> {
+    println!("[PREVIEW_DEBUG] reveal_preview_window: request_id={}", request_id);
     let current_request_id = PREVIEW_DATA
         .lock()
         .map_err(|_| "获取预览窗口状态失败".to_string())?
