@@ -23,7 +23,7 @@ const PREVIEW_WINDOW_MIN_WIDTH: u32 = 240;
 const PREVIEW_WINDOW_MIN_HEIGHT: u32 = 200;
 const PREVIEW_WINDOW_MAX_WIDTH: u32 = 1920;
 const PREVIEW_WINDOW_MAX_HEIGHT: u32 = 1200;
-const PREVIEW_MAIN_GAP: i32 = 18;
+const PREVIEW_MAIN_GAP_LOGICAL: i32 = 8;
 const PREVIEW_CURSOR_OFFSET: i32 = 16;
 
 static PREVIEW_REQUEST_VERSION: AtomicU64 = AtomicU64::new(0);
@@ -53,6 +53,7 @@ fn resolve_preview_window_rect(
   cursor_y: i32,
   width: u32,
   height: u32,
+  scale_factor: f64,
 ) -> (i32, i32, u32, u32) {
   let wa_left = work_area_x;
   let wa_top = work_area_y;
@@ -61,6 +62,8 @@ fn resolve_preview_window_rect(
 
   let width = width.min((work_area_width.saturating_sub(8)).max(PREVIEW_WINDOW_MIN_WIDTH));
   let height = height.min((work_area_height.saturating_sub(8)).max(PREVIEW_WINDOW_MIN_HEIGHT));
+
+  let main_gap = (PREVIEW_MAIN_GAP_LOGICAL as f64 * scale_factor).round() as i32;
 
   let mut left = cursor_x + PREVIEW_CURSOR_OFFSET;
   let mut top = cursor_y + PREVIEW_CURSOR_OFFSET;
@@ -71,8 +74,8 @@ fn resolve_preview_window_rect(
     let mw_top = mw_y;
     let mw_bottom = mw_y + mw_h as i32;
 
-    let right_target = mw_right + PREVIEW_MAIN_GAP;
-    let left_target = mw_left - PREVIEW_MAIN_GAP - width as i32;
+    let right_target = mw_right + main_gap;
+    let left_target = mw_left - main_gap - width as i32;
     let can_right = right_target + width as i32 <= wa_right;
     let can_left = left_target >= wa_left;
 
@@ -349,6 +352,7 @@ pub async fn show_preview_window(
         cursor_y,
         width,
         height,
+        scale_factor,
     );
 
     let preview_data = PreviewWindowData {
