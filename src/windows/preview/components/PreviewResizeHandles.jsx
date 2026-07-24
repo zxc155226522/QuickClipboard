@@ -26,6 +26,10 @@ const CORNERS = {
 // 关键：必须用 mousemove / mouseup（而非 pointermove / pointerup）。
 // 鼠标按住拖动时 pointermove 在指针移出窗口后不再触发，会导致缩放卡死。
 // mousemove 有隐式捕获，移出窗口也持续触发，规避此问题。
+//
+// 使用 screenX/screenY 绝对坐标计算累计偏移，而非 movementX/movementY（单次事件增量）。
+// movementX 是相邻两次 mousemove 的差值，用 startW + movementX 会导致窗口在起始尺寸
+// 附近反复跳动（闪烁），而非持续放大/缩小。
 export default function PreviewResizeHandles() {
   const [active, setActive] = useState(null);
   const dragRef = useRef(null);
@@ -55,11 +59,13 @@ export default function PreviewResizeHandles() {
     const dpr = scale && scale > 0 ? scale : window.devicePixelRatio || 1;
     dragRef.current = {
       dir,
-      startLeft: outer.x, // 物理像素
+      startLeft: outer.x,       // 物理像素
       startTop: outer.y,
-      startW: inner.width, // 物理像素
+      startW: inner.width,       // 物理像素
       startH: inner.height,
       scale: dpr,
+      startScreenX: event.screenX, // 屏幕坐标，不受窗口移动影响
+      startScreenY: event.screenY,
     };
     setActive(dir);
 
@@ -77,8 +83,9 @@ export default function PreviewResizeHandles() {
         return;
       }
 
-      const dx = e.movementX * s.scale;
-      const dy = e.movementY * s.scale;
+      // 用 screenX/screenY 计算从拖拽起点的累计偏移（物理像素）
+      const dx = (e.screenX - s.startScreenX) * s.scale;
+      const dy = (e.screenY - s.startScreenY) * s.scale;
 
       const newW = clamp(
         s.startW + (s.dir === 'nw' || s.dir === 'sw' ? -dx : dx),

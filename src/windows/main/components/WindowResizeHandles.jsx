@@ -171,7 +171,9 @@ function WindowResizeHandles() {
       startTop: outer.y,
       startW: inner.width, // 物理像素
       startH: inner.height,
-      scale: dpr
+      scale: dpr,
+      startScreenX: event.screenX, // 屏幕坐标，不受窗口移动影响
+      startScreenY: event.screenY,
     };
     isResizingRef.current = true;
     setIsVisible(true);
@@ -190,8 +192,9 @@ function WindowResizeHandles() {
         return;
       }
 
-      const dx = e.movementX * s.scale;
-      const dy = e.movementY * s.scale;
+      // 用 screenX/screenY 计算从拖拽起点的累计偏移（物理像素）
+      const dx = (e.screenX - s.startScreenX) * s.scale;
+      const dy = (e.screenY - s.startScreenY) * s.scale;
 
       const newW = clamp(
         s.startW + (s.dir === 'nw' || s.dir === 'sw' ? -dx : dx),
