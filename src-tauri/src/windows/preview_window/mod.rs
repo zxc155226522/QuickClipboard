@@ -419,6 +419,18 @@ pub async fn show_preview_window(
 
             let _ = refresh_preview_window_always_on_top(&window);
             let _ = window.emit("preview-window-data-updated", &preview_data_for_create);
+
+            // 等待 WebView2 控制器初始化完成后再显示窗口。
+            // wry 的窗口子类过程序在 WM_SETFOCUS/WM_ENTERSIZEMOVE 时会解引用
+            // 控制器指针，若控制器尚未初始化（dwrefdata 为 null）则空指针崩溃。
+            // 透明窗口的控制器初始化更慢，需要额外等待。
+            tokio::time::sleep(Duration::from_millis(300)).await;
+
+            if PREVIEW_REQUEST_VERSION.load(Ordering::SeqCst) != request_id {
+                let _ = window.close();
+                return;
+            }
+
             let _ = window.show();
             return;
         }
@@ -535,6 +547,8 @@ pub fn warmup_preview_window(app: &AppHandle) {
                 Ok(_window) => {
                     // 窗口创建成功，保持隐藏状态即可
                     // 预览数据将在实际 show_preview_window 时通过 emit 注入
+                    // 等待 WebView2 控制器初始化，避免 show 时触发 wry 空指针崩溃
+                    tokio::time::sleep(Duration::from_millis(300)).await;
                     return;
                 }
                 Err(error) => {
