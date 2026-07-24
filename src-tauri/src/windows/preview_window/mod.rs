@@ -212,7 +212,7 @@ fn schedule_preview_hide_watchdog(app: AppHandle, watchdog_version: u64) {
             }
 
             if app.get_webview_window(PREVIEW_WINDOW_LABEL).is_some() {
-                destroy_preview_window_internal(&app);
+                hide_preview_window_internal(&app);
             }
 
             tokio::time::sleep(Duration::from_millis(
@@ -417,20 +417,19 @@ pub async fn show_preview_window(
                 return;
             }
 
-            let _ = refresh_preview_window_always_on_top(&window);
             let _ = window.emit("preview-window-data-updated", &preview_data_for_create);
 
             // 等待 WebView2 控制器初始化完成后再显示窗口。
-            // wry 的窗口子类过程序在 WM_SETFOCUS/WM_ENTERSIZEMOVE 时会解引用
-            // 控制器指针，若控制器尚未初始化（dwrefdata 为 null）则空指针崩溃。
-            // 透明窗口的控制器初始化更慢，需要额外等待。
-            tokio::time::sleep(Duration::from_millis(300)).await;
+            // wry 的窗口子类过程序在 WM_SETFOCUS 时会解引用控制器指针，
+            // 若控制器尚未初始化（dwrefdata 为 null）则空指针崩溃。
+            tokio::time::sleep(Duration::from_millis(500)).await;
 
             if PREVIEW_REQUEST_VERSION.load(Ordering::SeqCst) != request_id {
                 let _ = window.close();
                 return;
             }
 
+            let _ = refresh_preview_window_always_on_top(&window);
             let _ = window.show();
             return;
         }
@@ -479,7 +478,15 @@ pub fn suppress_preview_for_main_window_hide(app: &AppHandle) {
     PREVIEW_SUPPRESSED.store(true, Ordering::SeqCst);
     PREVIEW_REQUEST_VERSION.fetch_add(1, Ordering::SeqCst);
     PREVIEW_DESTROY_TIMER_VERSION.fetch_add(1, Ordering::SeqCst);
-    destroy_preview_window_internal(app);
+
+    // 只隐藏预览窗口而非销毁，保持 WebView2 控制器存活。
+    // 反复创建透明窗口会导致 wry 在 WM_SETFOCUS 时因控制器未初始化而空指针崩溃。
+    // 窗口闲置 60s 后由 schedule_preview_window_destroy 自动销毁回收。
+    hide_preview_window_internal(app);
+    if let Ok(mut guard) = PREVIEW_DATA.lock() {
+        *guard = None;
+    }
+    PREVIEW_PINNED.store(false, Ordering::SeqCst);
 
     let watchdog_version = PREVIEW_HIDE_WATCHDOG_VERSION.fetch_add(1, Ordering::SeqCst) + 1;
     schedule_preview_hide_watchdog(app.clone(), watchdog_version);
@@ -545,10 +552,10 @@ pub fn warmup_preview_window(app: &AppHandle) {
                 scale_factor,
             ) {
                 Ok(_window) => {
-                    // 窗口创建成功，保持隐藏状态即可
-                    // 预览数据将在实际 show_preview_window 时通过 emit 注入
-                    // 等待 WebView2 控制器初始化，避免 show 时触发 wry 空指针崩溃
-                    tokio::time::sleep(Duration::from_millis(300)).await;
+                    // 窗口创建成功，保持隐藏状态即可。
+                    // 预览数据将在实际 show_preview_window 时通过 emit 注入。
+                    // 等待 WebView2 控制器初始化，避免后续 show 时触发 wry 空指针崩溃。
+                    tokio::time::sleep(Duration::from_millis(500)).await;
                     return;
                 }
                 Err(error) => {
