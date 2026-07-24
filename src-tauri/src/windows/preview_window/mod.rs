@@ -190,7 +190,9 @@ fn schedule_preview_window_destroy(app: AppHandle, timer_version: u64, request_i
             return;
         }
 
-        destroy_preview_window_internal(&app);
+        // 只隐藏而非销毁，保持 WebView2 控制器存活。
+        // 反复创建透明窗口会导致 wry 空指针崩溃（WM_SETFOCUS 时控制器未初始化）。
+        hide_preview_window_internal(&app);
     });
 }
 
@@ -579,7 +581,12 @@ pub fn warmup_preview_window(app: &AppHandle) {
 pub fn force_close_preview_window(app: &AppHandle) {
     PREVIEW_REQUEST_VERSION.fetch_add(1, Ordering::SeqCst);
     PREVIEW_DESTROY_TIMER_VERSION.fetch_add(1, Ordering::SeqCst);
-    destroy_preview_window_internal(app);
+    // 只隐藏而非销毁，避免下次创建时 wry 空指针崩溃。
+    hide_preview_window_internal(app);
+    if let Ok(mut guard) = PREVIEW_DATA.lock() {
+        *guard = None;
+    }
+    PREVIEW_PINNED.store(false, Ordering::SeqCst);
 }
 
 #[tauri::command]
