@@ -70,6 +70,10 @@ pub struct AppSettings {
     pub quickpaste_window_width: u32,
     pub quickpaste_window_height: u32,
 
+    // 悬浮预览窗口尺寸
+    pub preview_window_width: u32,
+    pub preview_window_height: u32,
+
     // AI翻译设置
     pub ai_translation_enabled: bool,
     pub ai_api_key: String,
@@ -251,6 +255,9 @@ impl Default for AppSettings {
             quickpaste_scroll_sound_path: "sounds/roll.mp3".to_string(),
             quickpaste_window_width: 300,
             quickpaste_window_height: 400,
+
+            preview_window_width: 640,
+            preview_window_height: 480,
 
             ai_translation_enabled: false,
             ai_api_key: String::new(),
