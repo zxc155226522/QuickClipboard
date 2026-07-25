@@ -175,6 +175,7 @@ pub fn run() {
                 commands::drop_proxy::drop_proxy_cleanup_orphan_resources,
                 windows::preview_window::show_preview_window,
                 windows::preview_window::close_preview_window,
+                windows::preview_window::cancel_close_preview_window,
                 windows::preview_window::reveal_preview_window,
                 windows::preview_window::finalize_hide_preview_window,
                 windows::preview_window::set_preview_pinned,

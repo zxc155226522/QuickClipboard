@@ -56,7 +56,7 @@ import {
   parseFirstImageId,
   parseImageDimensionsFromItem,
 } from './utils';
-import { closePreviewWindow, setPreviewPinned } from '@shared/api/previewWindow';
+import { closePreviewWindow, cancelClosePreviewWindow, setPreviewPinned } from '@shared/api/previewWindow';
 import PreviewResizeHandles from './components/PreviewResizeHandles';
 
 const IMAGE_FILE_EXTENSION_PATTERN = /\.(png|jpe?g|gif|webp|bmp|svg|ico|tiff?|avif)$/i;
@@ -207,8 +207,8 @@ function App() {
   const [isVisible, setIsVisible] = useState(false);
   const [pinned, setPinned] = useState(false);
   const [windowSize, setWindowSize] = useState({
-    width: typeof window !== 'undefined' ? window.innerWidth : 640,
-    height: typeof window !== 'undefined' ? window.innerHeight : 480,
+width: typeof window !== 'undefined' ? window.innerWidth : 300,
+      height: typeof window !== 'undefined' ? window.innerHeight : 300,
   });
   const revealedRequestIdRef = useRef(0);
   const revealAnimationFrameRef = useRef(0);
@@ -605,8 +605,8 @@ function App() {
   useEffect(() => {
     const handleResize = () => {
       setWindowSize({
-        width: typeof window !== 'undefined' ? window.innerWidth : 640,
-        height: typeof window !== 'undefined' ? window.innerHeight : 480,
+width: typeof window !== 'undefined' ? window.innerWidth : 300,
+      height: typeof window !== 'undefined' ? window.innerHeight : 300,
       });
     };
     handleResize();
@@ -901,7 +901,10 @@ function App() {
   }
 
   return (
-    <div className={`preview-container fixed inset-0 overflow-hidden bg-transparent ${isDark ? 'dark' : ''}`}>
+    <div
+      className={`preview-container fixed inset-0 overflow-hidden bg-transparent ${isDark ? 'dark' : ''}`}
+      onMouseEnter={() => { cancelClosePreviewWindow().catch(() => {}); }}
+    >
       <div
         className="preview-theme-anchor pointer-events-none absolute opacity-0"
         style={{ width: 0, height: 0, overflow: 'hidden' }}

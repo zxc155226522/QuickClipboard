@@ -69,8 +69,8 @@ export const defaultSettings = {
   textPreview: true,
   filePreview: true,
   // 悬浮预览窗固定尺寸（像素，逻辑像素）
-  previewWindowWidth: 640,
-  previewWindowHeight: 480,
+  previewWindowWidth: 300,
+  previewWindowHeight: 300,
   settingsMigrationVersion: 1,
   displayPriorityOrder: 'text,html,image',
   autoScrollToTopOnShow: false,

@@ -105,9 +105,9 @@ function ClipboardSection({
 
         <SettingItem label={t('settings.clipboard.previewWindowSize')} description={t('settings.clipboard.previewWindowSizeDesc')}>
           <div className="flex items-center gap-2">
-            <Input type="number" value={settings.previewWindowWidth ?? 640} onChange={e => onSettingChange('previewWindowWidth', clampInt(e.target.value, 240, 1920))} min={240} max={1920} className="w-24" />
+            <Input type="number" value={settings.previewWindowWidth ?? 300} onChange={e => onSettingChange('previewWindowWidth', clampInt(e.target.value, 240, 1920))} min={240} max={1920} className="w-24" />
             <span className="text-qc-fg-muted">×</span>
-            <Input type="number" value={settings.previewWindowHeight ?? 480} onChange={e => onSettingChange('previewWindowHeight', clampInt(e.target.value, 200, 1200))} min={200} max={1200} className="w-24" suffix="px" />
+            <Input type="number" value={settings.previewWindowHeight ?? 300} onChange={e => onSettingChange('previewWindowHeight', clampInt(e.target.value, 200, 1200))} min={200} max={1200} className="w-24" suffix="px" />
           </div>
         </SettingItem>
 

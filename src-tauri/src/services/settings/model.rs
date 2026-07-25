@@ -256,8 +256,8 @@ impl Default for AppSettings {
             quickpaste_window_width: 300,
             quickpaste_window_height: 400,
 
-            preview_window_width: 640,
-            preview_window_height: 480,
+            preview_window_width: 300,
+            preview_window_height: 300,
 
             ai_translation_enabled: false,
             ai_api_key: String::new(),

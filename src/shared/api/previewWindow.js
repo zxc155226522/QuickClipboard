@@ -28,8 +28,8 @@ function resolvePreviewSize() {
   const width = Number(settingsStore.previewWindowWidth);
   const height = Number(settingsStore.previewWindowHeight);
   return {
-    width: Number.isFinite(width) && width > 0 ? Math.round(width) : 640,
-    height: Number.isFinite(height) && height > 0 ? Math.round(height) : 480,
+    width: Number.isFinite(width) && width > 0 ? Math.round(width) : 300,
+    height: Number.isFinite(height) && height > 0 ? Math.round(height) : 300,
   };
 }
 
@@ -47,6 +47,10 @@ export async function showPreviewWindow(mode, source, itemId, itemRect = null) {
 
 export async function closePreviewWindow() {
   return await invoke('close_preview_window');
+}
+
+export async function cancelClosePreviewWindow() {
+  return await invoke('cancel_close_preview_window');
 }
 
 export async function setPreviewPinned(pinned) {

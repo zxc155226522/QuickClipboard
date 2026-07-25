@@ -17,8 +17,8 @@ const PREVIEW_HIDE_WATCHDOG_DURATION_MS: u64 = 5_000;
 const PREVIEW_HIDE_WATCHDOG_INTERVAL_MS: u64 = 100;
 
 // 悬浮预览窗固定尺寸（逻辑像素）
-const PREVIEW_WINDOW_DEFAULT_WIDTH: u32 = 640;
-const PREVIEW_WINDOW_DEFAULT_HEIGHT: u32 = 480;
+const PREVIEW_WINDOW_DEFAULT_WIDTH: u32 = 300;
+const PREVIEW_WINDOW_DEFAULT_HEIGHT: u32 = 300;
 const PREVIEW_WINDOW_MIN_WIDTH: u32 = 240;
 const PREVIEW_WINDOW_MIN_HEIGHT: u32 = 200;
 const PREVIEW_WINDOW_MAX_WIDTH: u32 = 1920;
@@ -29,6 +29,7 @@ const PREVIEW_CURSOR_OFFSET: i32 = 16;
 static PREVIEW_REQUEST_VERSION: AtomicU64 = AtomicU64::new(0);
 static PREVIEW_DESTROY_TIMER_VERSION: AtomicU64 = AtomicU64::new(0);
 static PREVIEW_HIDE_WATCHDOG_VERSION: AtomicU64 = AtomicU64::new(0);
+static PREVIEW_CLOSE_TIMER_VERSION: AtomicU64 = AtomicU64::new(0);
 static PREVIEW_SUPPRESSED: AtomicBool = AtomicBool::new(false);
 static PREVIEW_PINNED: AtomicBool = AtomicBool::new(false);
 static PREVIEW_DATA: Lazy<Mutex<Option<PreviewWindowData>>> = Lazy::new(|| Mutex::new(None));
@@ -291,6 +292,9 @@ pub async fn show_preview_window(
         return Ok(());
     }
 
+    // 取消任何待执行的延迟关闭
+    PREVIEW_CLOSE_TIMER_VERSION.fetch_add(1, Ordering::SeqCst);
+
     if crate::is_context_menu_visible() {
         return Ok(());
     }
@@ -442,7 +446,7 @@ pub fn set_preview_pinned(pinned: bool) -> Result<(), String> {
 
 #[tauri::command]
 pub fn close_preview_window(app: AppHandle) -> Result<(), String> {
-    PREVIEW_REQUEST_VERSION.fetch_add(1, Ordering::SeqCst);
+    let close_version = PREVIEW_CLOSE_TIMER_VERSION.fetch_add(1, Ordering::SeqCst) + 1;
     let request_id = PREVIEW_DATA
         .lock()
         .map_err(|_| "获取预览窗口状态失败".to_string())?
@@ -450,19 +454,37 @@ pub fn close_preview_window(app: AppHandle) -> Result<(), String> {
         .map(|data| data.request_id)
         .unwrap_or_default();
 
-    if request_id == 0 {
-        hide_preview_window_internal(&app);
-        return Ok(());
-    }
+    // 延迟 500ms 再执行关闭，给用户时间将鼠标移到预览窗口上。
+    // 期间若有 show_preview_window 或 cancel_close_preview_window 被调用，
+    // 版本号会变化，延迟任务到期后自动取消。
+    let app_clone = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(500)).await;
 
-    if let Some(window) = app.get_webview_window(PREVIEW_WINDOW_LABEL) {
-        window
-            .emit("preview-window-will-hide", request_id)
-            .map_err(|e| format!("发送预览窗口隐藏事件失败: {}", e))?;
-    } else {
-        hide_preview_window_internal(&app);
-    }
+        if PREVIEW_CLOSE_TIMER_VERSION.load(Ordering::SeqCst) != close_version {
+            return;
+        }
 
+        PREVIEW_REQUEST_VERSION.fetch_add(1, Ordering::SeqCst);
+
+        if request_id == 0 {
+            hide_preview_window_internal(&app_clone);
+            return;
+        }
+
+        if let Some(window) = app_clone.get_webview_window(PREVIEW_WINDOW_LABEL) {
+            let _ = window.emit("preview-window-will-hide", request_id);
+        } else {
+            hide_preview_window_internal(&app_clone);
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn cancel_close_preview_window() -> Result<(), String> {
+    PREVIEW_CLOSE_TIMER_VERSION.fetch_add(1, Ordering::SeqCst);
     Ok(())
 }
 
