@@ -29,6 +29,20 @@ pub fn generate_thumbnail_data_url(path: &str, max_width: u32) -> Result<String,
     use image::ImageFormat;
     use std::io::Cursor;
 
+    // 小图片直接返回空字符串，前端自动回退到高清原图
+    const SIZE_THRESHOLD: u64 = 2 * 1024 * 1024; // 2MB
+    const DIMENSION_THRESHOLD: u32 = 2000;
+
+    if let Ok(metadata) = std::fs::metadata(path) {
+        if metadata.len() < SIZE_THRESHOLD {
+            if let Some((width, height)) = get_image_dimensions(path) {
+                if width <= DIMENSION_THRESHOLD && height <= DIMENSION_THRESHOLD {
+                    return Ok(String::new());
+                }
+            }
+        }
+    }
+
     // 读取文件数据
     let file_data = std::fs::read(path)
         .map_err(|e| format!("读取图片失败: {}", e))?;
