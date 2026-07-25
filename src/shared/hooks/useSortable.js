@@ -44,7 +44,7 @@ export function useSortableList({ items, onDragEnd }) {
   const sensors = useSensors(
     useSensor(CustomMouseSensor, {
       activationConstraint: {
-        distance: 3,
+        distance: 8,
       },
     }),
     useSensor(KeyboardSensor, {

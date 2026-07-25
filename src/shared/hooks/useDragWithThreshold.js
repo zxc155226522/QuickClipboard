@@ -1,7 +1,7 @@
 import { useRef, useCallback } from 'react';
 import { startDrag } from '@crabnebula/tauri-plugin-drag';
 
-const DRAG_THRESHOLD = 5;
+const DRAG_THRESHOLD = 10;
 
 export function useDragWithThreshold(options = {}) {
   const { onDragPending, onDragStart, onDragEnd, onDragCancel, shouldStartDrag } = options;
