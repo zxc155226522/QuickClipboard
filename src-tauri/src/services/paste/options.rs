@@ -1,5 +1,3 @@
-use regex::Regex;
-
 use crate::services::database::{ClipboardDataItem, ClipboardItem, PasteOption};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -217,6 +215,8 @@ fn is_pure_image_item(item: &ClipboardItem) -> bool {
 }
 
 fn is_image_only_html(html: Option<&str>) -> bool {
+    use crate::utils::html::{TAG_REGEX, ENTITY_REGEX};
+    
     let Some(html) = html else {
         return false;
     };
@@ -225,10 +225,7 @@ fn is_image_only_html(html: Option<&str>) -> bool {
         return false;
     }
 
-    let tag_regex = Regex::new(r"<[^>]*>").unwrap();
-    let entity_regex = Regex::new(r"&[a-zA-Z]+;").unwrap();
-
-    let mut text = tag_regex.replace_all(html, " ").to_string();
-    text = entity_regex.replace_all(&text, " ").to_string();
+    let mut text = TAG_REGEX.replace_all(html, " ").to_string();
+    text = ENTITY_REGEX.replace_all(&text, " ").to_string();
     text.trim().is_empty()
 }

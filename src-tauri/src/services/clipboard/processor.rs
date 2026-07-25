@@ -5,7 +5,6 @@ use image::ImageFormat;
 use std::io::Cursor;
 use std::fs;
 use std::path::Path;
-use regex::Regex;
 use sha2::{Sha256, Digest};
 use serde::{Serialize, Deserialize};
 use crate::utils::cf_html::normalize_clipboard_html;
@@ -271,32 +270,28 @@ fn is_url(text: &str) -> bool {
 
 // 检测文本中是否包含链接
 fn contains_links(text: &str) -> bool {
-    let url_regex = Regex::new(r#"(?i)\b(https?://|ftp://|www\.)[^\s<>"]+\b"#).unwrap();
-    url_regex.is_match(text)
+    crate::utils::html::URL_REGEX.is_match(text)
 }
 
 // 从HTML中提取纯文本
 fn strip_html(html: &str) -> String {
-    let tag_regex = Regex::new(r"<[^>]*>").unwrap();
-    let entity_regex = Regex::new(r"&[a-zA-Z]+;").unwrap();
+    use crate::utils::html::{TAG_REGEX, ENTITY_REGEX, WHITESPACE_REGEX};
     
-    let mut text = tag_regex.replace_all(html, " ").to_string();
-    text = entity_regex.replace_all(&text, " ").to_string();
+    let mut text = TAG_REGEX.replace_all(html, " ").to_string();
+    text = ENTITY_REGEX.replace_all(&text, " ").to_string();
     
     // 清理多余的空白
-    let whitespace_regex = Regex::new(r"\s+").unwrap();
-    whitespace_regex.replace_all(&text, " ").trim().to_string()
+    WHITESPACE_REGEX.replace_all(&text, " ").trim().to_string()
 }
 
 // 处理HTML中的图片
 fn process_html_images(html: &str) -> Result<(String, Vec<String>), String> {
-    use regex::Regex;
+    use crate::utils::html::{IMG_SRC_DOUBLE_QUOTE_REGEX, IMG_SRC_SINGLE_QUOTE_REGEX};
     
     let mut processed_html = html.to_string();
     let mut image_ids = Vec::new();
     
-    if let Ok(re) = Regex::new(r#"(<img\b[^>]*?\bsrc\s*=\s*")([^"]+)(")"#) {
-        processed_html = re.replace_all(&processed_html, |caps: &regex::Captures| {
+    processed_html = IMG_SRC_DOUBLE_QUOTE_REGEX.replace_all(&processed_html, |caps: &regex::Captures| {
             let full_tag = &caps[0];
             let src = &caps[2];
             
@@ -312,10 +307,8 @@ fn process_html_images(html: &str) -> Result<(String, Vec<String>), String> {
                 full_tag.to_string()
             }
         }).to_string();
-    }
     
-    if let Ok(re) = Regex::new(r#"(<img\b[^>]*?\bsrc\s*=\s*')([^']+)(')"#) {
-        processed_html = re.replace_all(&processed_html, |caps: &regex::Captures| {
+    processed_html = IMG_SRC_SINGLE_QUOTE_REGEX.replace_all(&processed_html, |caps: &regex::Captures| {
             let full_tag = &caps[0];
             let src = &caps[2];
             
@@ -332,7 +325,6 @@ fn process_html_images(html: &str) -> Result<(String, Vec<String>), String> {
                 full_tag.to_string()
             }
         }).to_string();
-    }
     
     Ok((processed_html, image_ids))
 }

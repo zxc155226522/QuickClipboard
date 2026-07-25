@@ -1,5 +1,35 @@
 // HTML 处理工具函数
 
+use once_cell::sync::Lazy;
+use regex::Regex;
+
+/// 匹配所有 HTML 标签，如 `<div>`、`</span>`、`<img src="...">`
+pub static TAG_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"<[^>]*>").unwrap());
+
+/// 匹配 HTML 实体，如 `&nbsp;`、`&lt;`、`&amp;`
+pub static ENTITY_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"&[a-zA-Z]+;").unwrap());
+
+/// 匹配连续空白字符
+pub static WHITESPACE_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\s+").unwrap());
+
+/// 检测文本中是否包含 URL 链接（不区分大小写）
+pub static URL_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?i)\b(https?://|ftp://|www\.)[^\s<>"]+\b"#).unwrap()
+});
+
+/// 提取 `<img src="xxx">` 中双引号包裹的 src 值
+pub static IMG_SRC_DOUBLE_QUOTE_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(<img\b[^>]*?\bsrc\s*=\s*")([^"]+)(")"#).unwrap()
+});
+
+/// 提取 `<img src='xxx'>` 中单引号包裹的 src 值
+pub static IMG_SRC_SINGLE_QUOTE_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(<img\b[^>]*?\bsrc\s*=\s*')([^']+)(')"#).unwrap()
+});
+
 pub fn truncate_html(html: String, max_visible_len: usize) -> String {
     if html.is_empty() {
         return html;
