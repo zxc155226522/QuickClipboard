@@ -23,7 +23,7 @@ const PREVIEW_WINDOW_MIN_WIDTH: u32 = 240;
 const PREVIEW_WINDOW_MIN_HEIGHT: u32 = 200;
 const PREVIEW_WINDOW_MAX_WIDTH: u32 = 1920;
 const PREVIEW_WINDOW_MAX_HEIGHT: u32 = 1200;
-const PREVIEW_MAIN_GAP_LOGICAL: i32 = 4;
+const PREVIEW_MAIN_GAP_LOGICAL: i32 = 2;
 const PREVIEW_CURSOR_OFFSET: i32 = 16;
 
 static PREVIEW_REQUEST_VERSION: AtomicU64 = AtomicU64::new(0);
@@ -193,8 +193,7 @@ fn schedule_preview_window_destroy(app: AppHandle, timer_version: u64, request_i
             return;
         }
 
-        // 只隐藏而非销毁，保持 WebView2 控制器存活。
-        // 反复创建透明窗口会导致 wry 空指针崩溃（WM_SETFOCUS 时控制器未初始化）。
+        // 只隐藏而非销毁，保持 WebView2 控制器存活，避免反复创建触发 wry 空指针崩溃。
         hide_preview_window_internal(&app);
     });
 }
@@ -394,55 +393,42 @@ pub async fn show_preview_window(
     let app_for_create = app.clone();
     let preview_data_for_create = preview_data.clone();
     tauri::async_runtime::spawn(async move {
-        let mut last_error = None;
-        for _ in 0..8 {
-            if PREVIEW_REQUEST_VERSION.load(Ordering::SeqCst) != request_id {
-                return;
-            }
-
-            let window = match create_preview_window(
-                &app_for_create,
-                rect,
-                scale_factor,
-            ) {
-                Ok(window) => window,
-                Err(error) => {
-                    if error.contains("already exists") {
-                        last_error = Some(error);
-                        tokio::time::sleep(Duration::from_millis(20)).await;
-                        continue;
+        // 先尝试创建窗口。若 warmup 已创建则直接复用。
+        let window = match create_preview_window(&app_for_create, rect, scale_factor) {
+            Ok(window) => window,
+            Err(error) => {
+                if error.contains("already exists") {
+                    // warmup 已创建窗口，复用它
+                    match app_for_create.get_webview_window(PREVIEW_WINDOW_LABEL) {
+                        Some(existing) => existing,
+                        None => {
+                            eprintln!("预览窗口报告已存在但无法获取: {}", error);
+                            return;
+                        }
                     }
-
+                } else {
                     eprintln!("创建预览窗口失败: {}", error);
                     return;
                 }
-            };
-
-            if PREVIEW_REQUEST_VERSION.load(Ordering::SeqCst) != request_id {
-                let _ = window.close();
-                return;
             }
+        };
 
-            let _ = window.emit("preview-window-data-updated", &preview_data_for_create);
-
-            // 等待 WebView2 控制器初始化完成后再显示窗口。
-            // wry 的窗口子类过程序在 WM_SETFOCUS 时会解引用控制器指针，
-            // 若控制器尚未初始化（dwrefdata 为 null）则空指针崩溃。
-            tokio::time::sleep(Duration::from_millis(500)).await;
-
-            if PREVIEW_REQUEST_VERSION.load(Ordering::SeqCst) != request_id {
-                let _ = window.close();
-                return;
-            }
-
-            let _ = refresh_preview_window_always_on_top(&window);
-            let _ = window.show();
+        if PREVIEW_REQUEST_VERSION.load(Ordering::SeqCst) != request_id {
             return;
         }
 
-        if let Some(error) = last_error {
-            eprintln!("创建预览窗口失败: {}", error);
+        let _ = apply_preview_window_rect(&window, rect);
+        let _ = window.emit("preview-window-data-updated", &preview_data_for_create);
+
+        // 等待 WebView2 控制器初始化完成后再显示窗口，避免 wry 空指针崩溃。
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        if PREVIEW_REQUEST_VERSION.load(Ordering::SeqCst) != request_id {
+            return;
         }
+
+        let _ = refresh_preview_window_always_on_top(&window);
+        let _ = window.show();
     });
 
     Ok(())
@@ -485,9 +471,7 @@ pub fn suppress_preview_for_main_window_hide(app: &AppHandle) {
     PREVIEW_REQUEST_VERSION.fetch_add(1, Ordering::SeqCst);
     PREVIEW_DESTROY_TIMER_VERSION.fetch_add(1, Ordering::SeqCst);
 
-    // 只隐藏预览窗口而非销毁，保持 WebView2 控制器存活。
-    // 反复创建透明窗口会导致 wry 在 WM_SETFOCUS 时因控制器未初始化而空指针崩溃。
-    // 窗口闲置 60s 后由 schedule_preview_window_destroy 自动销毁回收。
+    // 只隐藏而非销毁，保持 WebView2 控制器存活。
     hide_preview_window_internal(app);
     if let Ok(mut guard) = PREVIEW_DATA.lock() {
         *guard = None;
@@ -559,7 +543,6 @@ pub fn warmup_preview_window(app: &AppHandle) {
             ) {
                 Ok(_window) => {
                     // 窗口创建成功，保持隐藏状态即可。
-                    // 预览数据将在实际 show_preview_window 时通过 emit 注入。
                     // 等待 WebView2 控制器初始化，避免后续 show 时触发 wry 空指针崩溃。
                     tokio::time::sleep(Duration::from_millis(500)).await;
                     return;
