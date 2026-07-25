@@ -117,6 +117,16 @@ async function loadPasteOptions(source, itemId) {
   return [];
 }
 
+async function resolveImageAsThumbnail(path) {
+  try {
+    const dataUrl = await invoke('get_image_thumbnail', { storedPath: path });
+    if (dataUrl) return dataUrl;
+  } catch (e) {
+    console.warn('生成缩略图失败，回退到原图:', e);
+  }
+  return convertFileSrc(path, 'asset');
+}
+
 async function resolveImageUrlFromItem(item) {
   const content = typeof item?.content === 'string' ? item.content.trim() : '';
   if (content.startsWith('data:image/')) {
@@ -128,7 +138,7 @@ async function resolveImageUrlFromItem(item) {
     const resolvedPath = parsedPath.includes(':') || parsedPath.startsWith('\\\\')
       ? parsedPath
       : await invoke('resolve_image_path', { storedPath: parsedPath });
-    return convertFileSrc(resolvedPath, 'asset');
+    return await resolveImageAsThumbnail(resolvedPath);
   }
 
   const imageId = parseFirstImageId(item?.image_id);
@@ -136,7 +146,7 @@ async function resolveImageUrlFromItem(item) {
     const dataDir = await invoke('get_data_directory');
     const normalizedDataDir = String(dataDir).replace(/\\/g, '/');
     const filePath = `${normalizedDataDir}/clipboard_images/${imageId}.png`;
-    return convertFileSrc(filePath, 'asset');
+    return await resolveImageAsThumbnail(filePath);
   }
 
   const rawPath = parseRawImagePath(content);
@@ -144,7 +154,7 @@ async function resolveImageUrlFromItem(item) {
     const resolvedPath = rawPath.includes(':') || rawPath.startsWith('\\\\')
       ? rawPath
       : await invoke('resolve_image_path', { storedPath: rawPath });
-    return convertFileSrc(resolvedPath, 'asset');
+    return await resolveImageAsThumbnail(resolvedPath);
   }
 
   if (rawPath.startsWith('image-id:')) {
@@ -152,7 +162,7 @@ async function resolveImageUrlFromItem(item) {
     const dataDir = await invoke('get_data_directory');
     const normalizedDataDir = String(dataDir).replace(/\\/g, '/');
     const filePath = `${normalizedDataDir}/clipboard_images/${legacyImageId}.png`;
-    return convertFileSrc(filePath, 'asset');
+    return await resolveImageAsThumbnail(filePath);
   }
 
   return '';

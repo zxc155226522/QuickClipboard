@@ -20,3 +20,41 @@ pub fn get_image_dimensions(path: &str) -> Option<(u32, u32)> {
     let img_reader = ImageReader::new(reader).with_guessed_format().ok()?;
     img_reader.into_dimensions().ok()
 }
+
+/// 生成缩略图的 base64 data URL。
+/// 读取图片文件 → 如果宽度超过 max_width 则 Lanczos3 缩放 → 编码 JPEG base64 → 返回 data URL。
+/// 所有中间数据（file_data、img、thumbnail）在各自作用域结束后立即释放。
+pub fn generate_thumbnail_data_url(path: &str, max_width: u32) -> Result<String, String> {
+    use base64::{Engine as _, engine::general_purpose};
+    use image::ImageFormat;
+    use std::io::Cursor;
+
+    // 读取文件数据
+    let file_data = std::fs::read(path)
+        .map_err(|e| format!("读取图片失败: {}", e))?;
+
+    // 解码并缩放，img 在 block 结束后释放
+    let thumbnail = {
+        let img = image::load_from_memory(&file_data)
+            .map_err(|e| format!("解码图片失败: {}", e))?;
+        if img.width() > max_width {
+            img.resize(max_width, u32::MAX, image::imageops::FilterType::Lanczos3)
+        } else {
+            img
+        }
+    };
+
+    // file_data 不再需要，提前释放
+    drop(file_data);
+
+    // 编码为 JPEG
+    let mut buf = Vec::new();
+    {
+        let mut cursor = Cursor::new(&mut buf);
+        thumbnail.write_to(&mut cursor, ImageFormat::Jpeg)
+            .map_err(|e| format!("编码缩略图失败: {}", e))?;
+    }
+
+    let b64 = general_purpose::STANDARD.encode(&buf);
+    Ok(format!("data:image/jpeg;base64,{}", b64))
+}

@@ -227,6 +227,7 @@ pub fn run() {
                 commands::merge_copy_clipboard_items,
                 commands::merge_paste_clipboard_items,
                 commands::resolve_image_path,
+                commands::get_image_thumbnail,
                 commands::get_favorites_history,
                 commands::get_favorites_total_count,
                 commands::get_favorite_item_by_id_cmd,
