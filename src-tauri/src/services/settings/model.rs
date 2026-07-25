@@ -243,7 +243,7 @@ impl Default for AppSettings {
             copy_sound_timing: "success".to_string(),
             paste_sound_timing: "success".to_string(),
 
-            image_max_size_mb: 15,
+            image_max_size_mb: 10,
             image_max_width: 4096,
             image_max_height: 4096,
 

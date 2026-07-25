@@ -485,13 +485,13 @@ pub fn resolve_image_path(stored_path: String) -> Result<String, String> {
 /// 生成图片缩略图的 base64 data URL，用于预览窗口加载大图时减少内存占用。
 /// 在 spawn_blocking 中执行图片解码，避免阻塞 async runtime。
 #[tauri::command]
-pub async fn get_image_thumbnail(stored_path: String) -> Result<String, String> {
+pub async fn get_image_thumbnail(stored_path: String, max_size_mb: Option<u64>) -> Result<String, String> {
     tokio::task::spawn_blocking(move || {
         let resolved = resolve_stored_path(&stored_path);
         if !Path::new(&resolved).exists() {
             return Err("图片文件不存在".to_string());
         }
-        crate::utils::image::generate_thumbnail_data_url(&resolved, 800)
+        crate::utils::image::generate_thumbnail_data_url(&resolved, 800, max_size_mb.unwrap_or(10))
     })
     .await
     .map_err(|e| format!("生成缩略图失败: {}", e))?

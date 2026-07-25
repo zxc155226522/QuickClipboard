@@ -24,22 +24,17 @@ pub fn get_image_dimensions(path: &str) -> Option<(u32, u32)> {
 /// 生成缩略图的 base64 data URL。
 /// 读取图片文件 → 如果宽度超过 max_width 则 Lanczos3 缩放 → 编码 JPEG base64 → 返回 data URL。
 /// 所有中间数据（file_data、img、thumbnail）在各自作用域结束后立即释放。
-pub fn generate_thumbnail_data_url(path: &str, max_width: u32) -> Result<String, String> {
+pub fn generate_thumbnail_data_url(path: &str, max_width: u32, max_size_mb: u64) -> Result<String, String> {
     use base64::{Engine as _, engine::general_purpose};
     use image::ImageFormat;
     use std::io::Cursor;
 
     // 小图片直接返回空字符串，前端自动回退到高清原图
-    const SIZE_THRESHOLD: u64 = 2 * 1024 * 1024; // 2MB
-    const DIMENSION_THRESHOLD: u32 = 2000;
+    let size_threshold = max_size_mb * 1024 * 1024;
 
     if let Ok(metadata) = std::fs::metadata(path) {
-        if metadata.len() < SIZE_THRESHOLD {
-            if let Some((width, height)) = get_image_dimensions(path) {
-                if width <= DIMENSION_THRESHOLD && height <= DIMENSION_THRESHOLD {
-                    return Ok(String::new());
-                }
-            }
+        if metadata.len() < size_threshold {
+            return Ok(String::new());
         }
     }
 

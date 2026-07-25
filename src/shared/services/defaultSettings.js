@@ -103,7 +103,7 @@ export const defaultSettings = {
   pasteSoundTiming: 'success', 
 
   // 图片显示限制
-  imageMaxSizeMb: 15,
+  imageMaxSizeMb: 10,
   imageMaxWidth: 4096,
   imageMaxHeight: 4096,
   

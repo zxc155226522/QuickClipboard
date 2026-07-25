@@ -119,7 +119,8 @@ async function loadPasteOptions(source, itemId) {
 
 async function resolveImageAsThumbnail(path) {
   try {
-    const dataUrl = await invoke('get_image_thumbnail', { storedPath: path });
+    const maxSizeMb = settingsStore.imageMaxSizeMb || 10;
+    const dataUrl = await invoke('get_image_thumbnail', { storedPath: path, maxSizeMb });
     if (dataUrl) return dataUrl;
   } catch (e) {
     console.warn('生成缩略图失败，回退到原图:', e);
