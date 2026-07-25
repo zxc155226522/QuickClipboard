@@ -94,7 +94,23 @@ function ImageContent({ item, maxContentHeightPx }) {
               }
 
               if (isSizeOversized || isDimensionOversized) {
-                setIsOversized(true);
+                // 尝试生成缩略图，后端根据文件大小判断是否需要
+                try {
+                  const dataUrl = await invoke('get_image_thumbnail', { storedPath: actualPath, maxSizeMb });
+                  if (!disposed) {
+                    if (dataUrl) {
+                      setImageSrc(dataUrl);
+                    } else {
+                      // 后端返回空字符串，回退到原图
+                      setImageSrc(convertFileSrc(actualPath, 'asset'));
+                    }
+                  }
+                } catch (e) {
+                  // 生成缩略图失败，回退到“图片过大”提示
+                  if (!disposed) {
+                    setIsOversized(true);
+                  }
+                }
               } else {
                 const assetUrl = convertFileSrc(actualPath, 'asset');
                 setImageSrc(assetUrl);
@@ -115,7 +131,21 @@ function ImageContent({ item, maxContentHeightPx }) {
           const filePath = `${normalizedDataDir}/clipboard_images/${imageId}.png`;
           imagePathRef.current = filePath;
           setFileName(`${imageId}.png`);
-          setImageSrc(`${convertFileSrc(filePath, 'asset')}?retry=${retryToken}`);
+          // 尝试生成缩略图，小图片后端返回空字符串自动加载原图
+          try {
+            const dataUrl = await invoke('get_image_thumbnail', { storedPath: filePath, maxSizeMb });
+            if (!disposed) {
+              if (dataUrl) {
+                setImageSrc(dataUrl);
+              } else {
+                setImageSrc(`${convertFileSrc(filePath, 'asset')}?retry=${retryToken}`);
+              }
+            }
+          } catch (e) {
+            if (!disposed) {
+              setImageSrc(`${convertFileSrc(filePath, 'asset')}?retry=${retryToken}`);
+            }
+          }
           return;
         }
 
