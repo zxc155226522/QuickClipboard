@@ -182,6 +182,7 @@ function normalizePreviewFileEntry(file = {}) {
     isDirectory: Boolean(file?.is_directory),
     exists: file?.exists !== false,
     fileType: typeof file?.file_type === 'string' ? file.file_type.trim() : '',
+    thumbnailPath: typeof file?.thumbnail_path === 'string' ? file.thumbnail_path.trim() : '',
     iconData: typeof file?.icon_data === 'string' ? file.icon_data : '',
     width: Number(file?.width) || null,
     height: Number(file?.height) || null,

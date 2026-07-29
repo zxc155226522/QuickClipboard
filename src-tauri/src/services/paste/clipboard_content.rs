@@ -14,6 +14,10 @@ pub struct FileInfo {
     pub size: u64,
     #[serde(default)]
     pub is_directory: bool,
+    /// 缩略图相对路径（如 \"file_thumbnails/xxx.png\"），优先于 icon_data 使用
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thumbnail_path: Option<String>,
+    /// 旧版 base64 图标（保留兼容）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon_data: Option<String>,
     #[serde(default)]

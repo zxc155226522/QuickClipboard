@@ -33,3 +33,54 @@ QuickClipboardWeb
 screenshot_Konva
 /src/windows/screenshot
 /src-tauri/plugins/gpu-image-viewer
+# === 通用编译产物 ===
+bin/
+obj/
+target/
+build/
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# === Node.js ===
+node_modules/
+
+# === IDE ===
+.vs/
+.vscode/
+*.user
+*.suo
+*.swp
+.idea/
+
+# === 发布产物 ===
+publish/
+publish_*/
+publish_release/
+dist/
+_internal/
+
+# === 调试文件 ===
+*.pdb
+
+# === 日志 ===
+*.log
+日志文件/
+
+# === 临时文件 ===
+*.tmp
+*.bak
+*.cache
+_temp_*
+
+# === 系统 ===
+Thumbs.db
+.DS_Store
+
+# === 备份 ===
+备份文件/

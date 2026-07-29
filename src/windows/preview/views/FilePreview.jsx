@@ -1,5 +1,5 @@
-import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef, useState, useEffect } from 'react';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { Virtuoso } from 'react-virtuoso';
 import { formatFileSize } from '@shared/utils/format';
 
@@ -8,7 +8,7 @@ function getFileIconClass(file) {
     return 'ti ti-folder';
   }
 
-  if (file?.fileType && /^(png|jpe?g|gif|bmp|webp|ico|svg)$/i.test(file.fileType)) {
+  if (file?.fileType && /^(png|jpe?g|gif|bmp|webp|ico|svg|tif?f)$/i.test(file.fileType)) {
     return 'ti ti-photo';
   }
 
@@ -19,11 +19,14 @@ function getFileIconClass(file) {
   return 'ti ti-file';
 }
 
+// 异步缩略图组件：与主窗口保持一致的加载逻辑
 function FileIcon({ file, size = 28 }) {
-  const isImageFile = file?.fileType && /^(png|jpe?g|gif|bmp|webp|ico|svg)$/i.test(file.fileType);
+  const isImageFile = file?.fileType && /^(png|jpe?g|gif|bmp|webp|ico|svg|tif?f)$/i.test(file.fileType);
   const actualPath = file?.actualPath || file?.path || '';
-  const placeholderSrc = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB4PSIzIiB5PSIzIiB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIGZpbGw9IiNDQ0NDQ0MiLz48L3N2Zz4K';
+  const [thumbPath, setThumbPath] = useState(file?.thumbnailPath || null);
+  const requestedRef = useRef(false);
 
+  // 文件不存在：直接显示图标
   if (file?.exists === false) {
     return (
       <span className="flex items-center justify-center text-qc-fg-muted">
@@ -32,6 +35,40 @@ function FileIcon({ file, size = 28 }) {
     );
   }
 
+  // 异步获取缩略图（与主窗口逻辑一致）
+  useEffect(() => {
+    if (thumbPath || requestedRef.current || !actualPath) return;
+    requestedRef.current = true;
+
+    invoke('get_file_thumbnail', { filePath: actualPath })
+      .then(path => {
+        if (path) setThumbPath(path);
+      })
+      .catch(() => {}); // 静默失败
+  }, [actualPath, thumbPath]);
+
+  // 显示缩略图
+  if (thumbPath) {
+    return (
+      <img
+        src={convertFileSrc(thumbPath, 'asset')}
+        alt={file?.name || '文件'}
+        className="flex-shrink-0 rounded-sm object-cover"
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+        }}
+        loading="lazy"
+        decoding="async"
+        onError={(e) => {
+          // 加载失败，显示图标
+          e.target.outerHTML = `<span class="flex items-center justify-center text-qc-fg-subtle"><i class="ti ${getFileIconClass(file)}" style="fontSize: ${Math.max(14, Math.round(size * 0.55))}px"></i></span>`;
+        }}
+      />
+    );
+  }
+
+  // 加载中或无缩略图：图片文件尝试显示原图
   if (isImageFile && actualPath) {
     return (
       <img
@@ -45,12 +82,13 @@ function FileIcon({ file, size = 28 }) {
         loading="lazy"
         decoding="async"
         onError={(e) => {
-          e.currentTarget.src = placeholderSrc;
+          e.target.outerHTML = `<span class="flex items-center justify-center text-qc-fg-subtle"><i class="ti ti-photo" style="fontSize: ${Math.max(14, Math.round(size * 0.55))}px"></i></span>`;
         }}
       />
     );
   }
 
+  // 旧版 base64 图标（兼容历史数据）
   if (file?.iconData) {
     return (
       <img
@@ -66,6 +104,7 @@ function FileIcon({ file, size = 28 }) {
     );
   }
 
+  // 兜底: Tabler 图标
   return (
     <span className="flex items-center justify-center text-qc-fg-subtle">
       <i className={getFileIconClass(file)} style={{ fontSize: Math.max(14, Math.round(size * 0.55)) }} />

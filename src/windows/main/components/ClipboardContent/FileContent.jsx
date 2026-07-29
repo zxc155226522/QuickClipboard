@@ -1,44 +1,106 @@
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { useSnapshot } from 'valtio';
 import { settingsStore } from '@shared/store/settingsStore';
 import { useTranslation } from 'react-i18next';
 import { highlightText } from '@shared/utils/highlightText';
 import { formatFileSize } from '@shared/utils/format';
+import React from 'react';
 
-const IMAGE_FILE_EXTENSIONS = ['PNG', 'JPG', 'JPEG', 'GIF', 'BMP', 'WEBP', 'ICO', 'SVG'];
+const IMAGE_FILE_EXTENSIONS = ['PNG', 'JPG', 'JPEG', 'GIF', 'BMP', 'WEBP', 'ICO', 'SVG', 'TIF', 'TIFF'];
 
+// 异步缩略图组件：按需加载，不阻塞渲染
+function AsyncFileIcon({ file, size = 20 }) {
+  const isImageFile = IMAGE_FILE_EXTENSIONS.includes(file.file_type?.toUpperCase());
+  const previewPath = file.actual_path || file.path;
+  const fileExists = file.exists !== false;
+  const [thumbPath, setThumbPath] = React.useState(file.thumbnail_path || null);
+  const [loading, setLoading] = React.useState(false);
+  const requestedRef = React.useRef(false);
+
+  // 文件不存在：直接显示提示
+  if (!fileExists) {
+    return (
+      <div 
+        className="flex-shrink-0 rounded-sm bg-red-50 border border-red-200 flex items-center justify-center text-red-400"
+        style={{ width: `${size}px`, height: `${size}px`, fontSize: size > 30 ? '10px' : '8px' }}
+        title={`文件不存在\n${previewPath}`}
+      >
+        ✕
+      </div>
+    );
+  }
+
+  // 异步获取缩略图（仅当没有缓存时）
+  React.useEffect(() => {
+    if (thumbPath || requestedRef.current || loading) return;
+    requestedRef.current = true;
+    setLoading(true);
+
+    invoke('get_file_thumbnail', { filePath: previewPath })
+      .then(path => {
+        if (path) setThumbPath(path);
+      })
+      .catch(() => {}) // 静默失败，显示占位符
+      .finally(() => setLoading(false));
+  }, [previewPath, thumbPath, loading]);
+
+  // 显示缩略图或占位符
+  if (thumbPath) {
+    const thumbSrc = convertFileSrc(thumbPath, 'asset');
+    return <img 
+      src={thumbSrc} 
+      alt={file.file_type || '文件'} 
+      className="flex-shrink-0 rounded-sm object-cover" 
+      style={{ width: `${size}px`, height: `${size}px` }}
+      loading="lazy" 
+      decoding="async" 
+      onError={e => {
+        e.target.outerHTML = `<div class="flex-shrink-0 rounded-sm bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-500 font-medium" style="width:${size}px;height:${size}px;font-size:${size > 30 ? '11px' : '9px'}" title="${previewPath}">${getFileExt(file.name) || '?'}</div>`;
+      }} 
+    />;
+  }
+
+  // 加载中/失败：图片文件尝试显示原图，其他显示扩展名
+  if (isImageFile && previewPath) {
+    const iconSrc = convertFileSrc(previewPath, 'asset');
+    return <img 
+      src={iconSrc} 
+      alt={file.file_type || '文件'} 
+      className="flex-shrink-0 rounded-sm object-cover" 
+      style={{ width: `${size}px`, height: `${size}px` }}
+      loading="lazy" 
+      decoding="async" 
+      onError={e => {
+        e.target.outerHTML = `<div class="flex-shrink-0 rounded-sm bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-500 font-medium" style="width:${size}px;height:${size}px;font-size:${size > 30 ? '11px' : '9px'}" title="${previewPath}">${getFileExt(file.name) || '?'}</div>`;
+      }} 
+    />;
+  }
+
+  // 兜底: 显示文件扩展名
+  return (
+    <div 
+      className="flex-shrink-0 rounded-sm bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-500 font-medium"
+      style={{ width: `${size}px`, height: `${size}px`, fontSize: size > 30 ? '11px' : '9px' }}
+      title={previewPath}
+    >
+      {getFileExt(file.name) || '?'}
+    </div>
+  );
+}
+
+// 同步版本（用于不需要异步的场景）
 function FileIcon({
   file,
   size = 20
 }) {
-  const isImageFile = IMAGE_FILE_EXTENSIONS.includes(file.file_type?.toUpperCase());
-  const previewPath = file.actual_path || file.path;
+  return <AsyncFileIcon file={file} size={size} />;
+}
 
-  const placeholderSrc = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiBmaWxsPSIjQ0NDQ0NDIi8+Cjwvc3ZnPgo=';
-
-  if (isImageFile && previewPath) {
-    const iconSrc = convertFileSrc(previewPath, 'asset');
-    return <img src={iconSrc} alt={file.file_type || '文件'} className="flex-shrink-0 rounded-sm object-cover" style={{
-      width: `${size}px`,
-      height: `${size}px`
-    }} loading="lazy" decoding="async" onError={e => {
-      e.target.src = placeholderSrc;
-    }} />;
-  }
-
-  if (file.icon_data) {
-    return <img src={file.icon_data} alt={file.file_type || '文件'} className="flex-shrink-0" style={{
-      width: `${size}px`,
-      height: `${size}px`,
-      objectFit: 'contain'
-    }} />;
-  }
-
-  return <img src={placeholderSrc} alt={file.file_type || '文件'} className="flex-shrink-0" style={{
-    width: `${size}px`,
-    height: `${size}px`,
-    objectFit: 'contain'
-  }} />;
+// 获取文件扩展名（用于显示）
+function getFileExt(filename) {
+  if (!filename) return '';
+  const ext = filename.split('.').pop()?.toUpperCase();
+  return ext && ext.length <= 4 ? ext : '?';
 }
 
 function FileContent({

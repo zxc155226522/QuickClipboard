@@ -17,6 +17,11 @@ struct FileInfo {
     name: String,
     size: u64,
     is_directory: bool,
+    /// 缩略图相对路径（如 "file_thumbnails/xxx.png"），优先于 icon_data 使用
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    thumbnail_path: Option<String>,
+    /// 旧版 base64 图标（保留兼容，新数据不再生成）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     icon_data: Option<String>,
     file_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -233,8 +238,10 @@ fn collect_file_info(file_paths: &[String]) -> Result<Vec<FileInfo>, String> {
                 .unwrap_or_else(|| "文件".to_string())
         };
         
-        // 获取文件图标
-        let icon_data = crate::utils::icon::get_file_icon_base64(&actual_path);
+        // 不在此处同步获取缩略图（会阻塞剪贴板操作）
+        // 缩略图将在前端显示时按需生成，或由后台任务异步生成
+        let thumbnail_path: Option<String> = None;
+        let icon_data: Option<String> = None;
         
         let (width, height) = if crate::utils::is_image_file(&actual_path) {
             crate::utils::get_image_dimensions(&actual_path)
@@ -249,6 +256,7 @@ fn collect_file_info(file_paths: &[String]) -> Result<Vec<FileInfo>, String> {
             name,
             size: metadata.len(),
             is_directory: metadata.is_dir(),
+            thumbnail_path,
             icon_data,
             file_type,
             width,

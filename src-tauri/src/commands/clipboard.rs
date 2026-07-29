@@ -502,3 +502,16 @@ fn notify_lan_change(reason: &'static str) {
         crate::services::sync_transfer::lan_notify_local_change(app, reason);
     }
 }
+
+/// 异步获取或创建文件缩略图路径（不阻塞剪贴板操作）
+/// 前端在显示文件时可按需调用此命令获取缩略图
+#[tauri::command]
+pub async fn get_file_thumbnail(file_path: String) -> Result<Option<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        // 解析存储路径为实际路径
+        let resolved = resolve_stored_path(&file_path);
+        Ok(crate::utils::icon::get_or_create_file_thumbnail(&resolved))
+    })
+    .await
+    .map_err(|e| format!("获取缩略图失败: {}", e))?
+}

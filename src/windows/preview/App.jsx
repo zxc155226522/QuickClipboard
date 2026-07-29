@@ -438,11 +438,32 @@ width: typeof window !== 'undefined' ? window.innerWidth : 300,
         ]);
         if (cancelled) return;
 
+        // 检查文件是否全部不存在，如果是则强制使用文件预览模式
+        let forceFileMode = false;
+        if (item?.content?.startsWith('files:')) {
+          try {
+            const filesData = JSON.parse(item.content.slice(6));
+            const files = Array.isArray(filesData?.files) ? filesData.files : [];
+            if (files.length > 0 && files.every(f => f.exists === false)) {
+              forceFileMode = true;
+            }
+          } catch (e) { /* 解析失败忽略 */ }
+        }
+
         const nextFormatKinds = extractFormatKinds(pasteOptions, item);
-        const supportedPreviewModes = orderPreviewModesByDisplayPriority(
+        let supportedPreviewModes = orderPreviewModesByDisplayPriority(
           resolveFormatPreviewModes(item, nextFormatKinds),
           settings.displayPriorityOrder,
         );
+
+        // 如果文件全不存在，强制只显示文件预览
+        if (forceFileMode) {
+          supportedPreviewModes = supportedPreviewModes.filter(m => m === MODE_FILE);
+          if (!supportedPreviewModes.includes(MODE_FILE)) {
+            supportedPreviewModes.unshift(MODE_FILE);
+          }
+        }
+
         const requestedMode = resolvePreviewMode(previewData.mode, item);
         const initialMode = supportedPreviewModes.includes(requestedMode)
           ? requestedMode
