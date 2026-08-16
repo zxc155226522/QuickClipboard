@@ -743,8 +743,6 @@ function TabNavigation({
                     />
                   </div>
                 </>
-              )
-          }
         </div>
       </div>
     </div>
