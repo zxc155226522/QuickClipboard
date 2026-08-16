@@ -636,7 +636,6 @@ function TabNavigation({
             </div>
           )}
           {/* emoji mode buttons 已移除 - 只显示 filters */}
-          (
                 <>
                   {isFilterAutoExpanded ? (
                     <div className="flex items-center gap-1 flex-1 min-w-0" onMouseEnter={handleFilterAreaMouseEnter}>
